@@ -1,0 +1,710 @@
+mol_name = "WICZUF"
+mol_smi = "CC1=NC(=NC=C1)N"
+mol_formula = "C5H7N3"
+mol_weight = 109.13199999999996
+mol_charge = 0
+mol_spin_multiplicity = 1
+
+[data.omm_info]
+mol2 = [ "@<TRIPOS>MOLECULE\nUNL\n15 15 1 0 1\nSMALL\nUSER_CHARGES\n@<TRIPOS>ATOM\n       1 C1          -2.0090    -0.9250    -0.6630 c3            1 UNL       -0.022027\n       2 C2          -0.7990    -0.1990    -0.1570 ca            1 UNL        0.042621\n       3 N1           0.3850    -0.8410    -0.2330 nb            1 UNL       -0.220705\n       4 C3           1.4590    -0.1960     0.2350 ca            1 UNL        0.210958\n       5 N2           1.4500     1.0420     0.7360 nb            1 UNL       -0.223874\n       6 C4           0.2520     1.6510     0.7960 ca            1 UNL        0.032413\n       7 C5          -0.9160     1.0730     0.3630 ca            1 UNL       -0.022267\n       8 N3           2.6760    -0.8380     0.1440 nh            1 UNL       -0.327330\n       9 H1          -2.4710    -0.3640    -1.4810 hc            1 UNL        0.029580\n      10 H2          -2.7390    -1.0520     0.1430 hc            1 UNL        0.029580\n      11 H3          -1.7400    -1.9170    -1.0380 hc            1 UNL        0.029580\n      12 H4           0.2620     2.6510     1.2190 h4            1 UNL        0.084200\n      13 H5          -1.8640     1.5900     0.4270 ha            1 UNL        0.065830\n      14 H6           2.6380    -1.5230    -0.5970 hn            1 UNL        0.145720\n      15 H7           3.4150    -0.1500     0.1070 hn            1 UNL        0.145720\n@<TRIPOS>BOND\n       1        1        2 1\n       2        2        3 1\n       3        2        7 1\n       4        3        4 1\n       5        4        5 1\n       6        4        8 1\n       7        5        6 1\n       8        6        7 1\n       9        1        9 1\n      10        1       10 1\n      11        1       11 1\n      12        6       12 1\n      13        7       13 1\n      14        8       14 1\n      15        8       15 1\n@<TRIPOS>SUBSTRUCTURE\n       1 UNL             1 RESIDUE    0 **** ROOT      0\n@<TRIPOS>HEADTAIL\n0 0\n0 0\n@<TRIPOS>RESIDUECONNECT\n1 0 0 0 0 0 0\n",]
+[[data.omm_info.omm_forcefield]]
+
+[data.omm_info.omm_forcefield.ForceField.Info]
+DateGenerated = "2022-09-07"
+Info = "OMM XML"
+[data.omm_info.omm_forcefield.ForceField.AtomTypes]
+[[data.omm_info.omm_forcefield.ForceField.AtomTypes.Type]]
+"@element" = "C"
+"@name" = "c3"
+"@class" = "c3"
+"@mass" = "12.01"
+
+[[data.omm_info.omm_forcefield.ForceField.AtomTypes.Type]]
+"@element" = "C"
+"@name" = "ca"
+"@class" = "ca"
+"@mass" = "12.01"
+
+[[data.omm_info.omm_forcefield.ForceField.AtomTypes.Type]]
+"@element" = "N"
+"@name" = "nb"
+"@class" = "nb"
+"@mass" = "14.01"
+
+[[data.omm_info.omm_forcefield.ForceField.AtomTypes.Type]]
+"@element" = "N"
+"@name" = "nh"
+"@class" = "nh"
+"@mass" = "14.01"
+
+[[data.omm_info.omm_forcefield.ForceField.AtomTypes.Type]]
+"@element" = "H"
+"@name" = "hc"
+"@class" = "hc"
+"@mass" = "1.008"
+
+[[data.omm_info.omm_forcefield.ForceField.AtomTypes.Type]]
+"@element" = "H"
+"@name" = "h4"
+"@class" = "h4"
+"@mass" = "1.008"
+
+[[data.omm_info.omm_forcefield.ForceField.AtomTypes.Type]]
+"@element" = "H"
+"@name" = "ha"
+"@class" = "ha"
+"@mass" = "1.008"
+
+[[data.omm_info.omm_forcefield.ForceField.AtomTypes.Type]]
+"@element" = "H"
+"@name" = "hn"
+"@class" = "hn"
+"@mass" = "1.008"
+
+[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce]
+[[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce.Bond]]
+"@class1" = "c3"
+"@class2" = "ca"
+"@length" = "0.1516"
+"@k" = "268612.79999999993"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce.Bond]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@length" = "0.1339"
+"@k" = "408358.3999999999"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce.Bond]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@length" = "0.1398"
+"@k" = "385848.4799999999"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce.Bond]]
+"@class1" = "ca"
+"@class2" = "nh"
+"@length" = "0.1386"
+"@k" = "349698.7199999999"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce.Bond]]
+"@class1" = "c3"
+"@class2" = "hc"
+"@length" = "0.1097"
+"@k" = "276646.07999999996"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce.Bond]]
+"@class1" = "ca"
+"@class2" = "h4"
+"@length" = "0.1089"
+"@k" = "285767.19999999995"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce.Bond]]
+"@class1" = "ca"
+"@class2" = "ha"
+"@length" = "0.10860000000000002"
+"@k" = "289365.43999999994"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicBondForce.Bond]]
+"@class1" = "nh"
+"@class2" = "hn"
+"@length" = "0.10120000000000001"
+"@k" = "338569.27999999997"
+
+[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce]
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "c3"
+"@class2" = "ca"
+"@class3" = "nb"
+"@angle" = "2.03645104"
+"@k" = "563.1664"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "c3"
+"@class2" = "ca"
+"@class3" = "ca"
+"@angle" = "2.10783504"
+"@k" = "531.368"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "ca"
+"@angle" = "2.04587583"
+"@k" = "571.5344"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "ca"
+"@angle" = "2.09474507"
+"@k" = "557.3088"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "nb"
+"@class2" = "ca"
+"@class3" = "ca"
+"@angle" = "2.1457087"
+"@k" = "575.7184"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "nb"
+"@class2" = "ca"
+"@class3" = "nb"
+"@angle" = "2.22110696"
+"@k" = "593.2912000000001"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "nb"
+"@class2" = "ca"
+"@class3" = "nh"
+"@angle" = "2.0409889"
+"@k" = "608.3536"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "ca"
+"@class2" = "c3"
+"@class3" = "hc"
+"@angle" = "1.92806605"
+"@k" = "391.62239999999997"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "ha"
+"@angle" = "2.0923016"
+"@k" = "403.33760000000007"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "ca"
+"@class2" = "nh"
+"@class3" = "hn"
+"@angle" = "2.02580453"
+"@k" = "405.01120000000003"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "nb"
+"@class2" = "ca"
+"@class3" = "h4"
+"@angle" = "2.0251064"
+"@k" = "434.2992"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "h4"
+"@angle" = "2.10033012"
+"@k" = "402.5008"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "hc"
+"@class2" = "c3"
+"@class3" = "hc"
+"@angle" = "1.8776260100000002"
+"@k" = "329.6992"
+
+[[data.omm_info.omm_forcefield.ForceField.HarmonicAngleForce.Angle]]
+"@class1" = "hn"
+"@class2" = "nh"
+"@class3" = "hn"
+"@angle" = "2.0092239"
+"@k" = "335.5568"
+
+[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce]
+"@ordering" = "amber"
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "c3"
+"@class2" = "ca"
+"@class3" = "nb"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "20.0832"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "c3"
+"@class2" = "ca"
+"@class3" = "ca"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "15.167"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "ca"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "20.0832"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "ca"
+"@class4" = "nh"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "20.0832"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "ca"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "15.167"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "ca"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "20.0832"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "c3"
+"@class2" = "ca"
+"@class3" = "ca"
+"@class4" = "ha"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "15.167"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "ca"
+"@class4" = "h4"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "15.167"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "hc"
+"@class2" = "c3"
+"@class3" = "ca"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "0.0"
+"@k1" = "0.0"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "nb"
+"@class2" = "ca"
+"@class3" = "ca"
+"@class4" = "ha"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "15.167"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "nb"
+"@class2" = "ca"
+"@class3" = "nh"
+"@class4" = "hn"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.3932"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "ca"
+"@class4" = "h4"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "20.0832"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "hc"
+"@class2" = "c3"
+"@class3" = "ca"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "0.0"
+"@k1" = "0.0"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Proper]]
+"@class1" = "h4"
+"@class2" = "ca"
+"@class3" = "ca"
+"@class4" = "ha"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "15.167"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "c3"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "ca"
+"@class4" = "c3"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "c3"
+"@class3" = "nb"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "c3"
+"@class3" = "ca"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "nb"
+"@class4" = "c3"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "c3"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "nh"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "nb"
+"@class4" = "nh"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "nh"
+"@class3" = "nb"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "ca"
+"@class4" = "h4"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "nb"
+"@class3" = "h4"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "nb"
+"@class4" = "h4"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "h4"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "h4"
+"@class3" = "nb"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "h4"
+"@class3" = "ca"
+"@class4" = "nb"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "ca"
+"@class4" = "ha"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "ca"
+"@class3" = "ha"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "ca"
+"@class2" = "ha"
+"@class3" = "ca"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "nh"
+"@class2" = "hn"
+"@class3" = "hn"
+"@class4" = "ca"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "nh"
+"@class2" = "hn"
+"@class3" = "ca"
+"@class4" = "hn"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[[data.omm_info.omm_forcefield.ForceField.PeriodicTorsionForce.Improper]]
+"@class1" = "nh"
+"@class2" = "ca"
+"@class3" = "hn"
+"@class4" = "hn"
+"@periodicity1" = "2"
+"@phase1" = "3.141594"
+"@k1" = "4.6024"
+
+[data.omm_info.omm_forcefield.ForceField.NonbondedForce]
+"@coulomb14scale" = "0.8333333333333334"
+"@lj14scale" = "0.5"
+[[data.omm_info.omm_forcefield.ForceField.NonbondedForce.Atom]]
+"@class" = "c3"
+"@sigma" = "0.33996695084507406"
+"@epsilon" = "0.4577295996474049"
+
+[[data.omm_info.omm_forcefield.ForceField.NonbondedForce.Atom]]
+"@class" = "ca"
+"@sigma" = "0.33996695079448314"
+"@epsilon" = "0.35982400053705343"
+
+[[data.omm_info.omm_forcefield.ForceField.NonbondedForce.Atom]]
+"@class" = "nb"
+"@sigma" = "0.3249998524031036"
+"@epsilon" = "0.7112799996555186"
+
+[[data.omm_info.omm_forcefield.ForceField.NonbondedForce.Atom]]
+"@class" = "nh"
+"@sigma" = "0.3249998524031036"
+"@epsilon" = "0.7112799996555186"
+
+[[data.omm_info.omm_forcefield.ForceField.NonbondedForce.Atom]]
+"@class" = "hc"
+"@sigma" = "0.2649532787260222"
+"@epsilon" = "0.06568880010977264"
+
+[[data.omm_info.omm_forcefield.ForceField.NonbondedForce.Atom]]
+"@class" = "h4"
+"@sigma" = "0.25105525875831347"
+"@epsilon" = "0.06275999996435834"
+
+[[data.omm_info.omm_forcefield.ForceField.NonbondedForce.Atom]]
+"@class" = "ha"
+"@sigma" = "0.2599642458735085"
+"@epsilon" = "0.06276000026869927"
+
+[[data.omm_info.omm_forcefield.ForceField.NonbondedForce.Atom]]
+"@class" = "hn"
+"@sigma" = "0.10690784617205228"
+"@epsilon" = "0.06568880001765333"
+
+[data.omm_info.omm_forcefield.ForceField.NonbondedForce.UseAttributeFromResidue]
+"@name" = "charge"
+[data.omm_info.omm_forcefield.ForceField.Residues.Residue]
+"@name" = "UNL"
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "C1"
+"@type" = "c3"
+"@charge" = "-0.022026999994512218"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "C2"
+"@type" = "ca"
+"@charge" = "0.042620999983536655"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "N1"
+"@type" = "nb"
+"@charge" = "-0.22070499991768328"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "C3"
+"@type" = "ca"
+"@charge" = "0.21095799981341543"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "N2"
+"@type" = "nb"
+"@charge" = "-0.22387399998902444"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "C4"
+"@type" = "ca"
+"@charge" = "0.03241300000548778"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "C5"
+"@type" = "ca"
+"@charge" = "-0.022266999994512215"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "N3"
+"@type" = "nh"
+"@charge" = "-0.32733000005487783"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "H1"
+"@type" = "hc"
+"@charge" = "0.02958"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "H2"
+"@type" = "hc"
+"@charge" = "0.02958"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "H3"
+"@type" = "hc"
+"@charge" = "0.02958"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "H4"
+"@type" = "h4"
+"@charge" = "0.0842"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "H5"
+"@type" = "ha"
+"@charge" = "0.06583000005487781"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "H6"
+"@type" = "hn"
+"@charge" = "0.14572000021951126"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Atom]]
+"@name" = "H7"
+"@type" = "hn"
+"@charge" = "0.14572000021951126"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C1"
+"@atomName2" = "C2"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C1"
+"@atomName2" = "H1"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C1"
+"@atomName2" = "H2"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C1"
+"@atomName2" = "H3"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C2"
+"@atomName2" = "N1"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C2"
+"@atomName2" = "C5"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "N1"
+"@atomName2" = "C3"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C3"
+"@atomName2" = "N2"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C3"
+"@atomName2" = "N3"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "N2"
+"@atomName2" = "C4"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C4"
+"@atomName2" = "C5"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C4"
+"@atomName2" = "H4"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "C5"
+"@atomName2" = "H5"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "N3"
+"@atomName2" = "H6"
+
+[[data.omm_info.omm_forcefield.ForceField.Residues.Residue.Bond]]
+"@atomName1" = "N3"
+"@atomName2" = "H7"
+

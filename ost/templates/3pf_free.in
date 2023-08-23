@@ -1,0 +1,114 @@
+#include lmp.in
+#variable temperature    equal 300      # Kelvin
+#variable pressure       equal 0        # atmospheres
+#variable dt             equal 1        # fs
+#variable ih             equal 220 	# initial high of the indenter, in Angs
+#variable ib             equal 80 	# initial high of the indenters in basis, in Angs
+#variable id             equal 100 	# total indented distance, in Angs
+#variable vel            equal 0.00005 	# velocity of indentation, in Angs/fs, 10 m/s
+#variable R              equal 30.0     # cylinder radius of indenter in Angs
+#variable K              equal 10.0     # force const for indenter (force/distance^2)
+#variable t_hold         equal 300000   # holding timesteps
+#
+
+variable tdamp equal 100*${dt}
+variable pdamp equal 1000*${dt}
+
+# ------------- Energy minimization
+
+thermo_style    custom step temp ke pe etotal press lx ly lz vol
+thermo_modify   lost warn norm yes
+
+min_style cg
+#minimize 1.0e-25 1.0e-25 100000 1000000
+minimize 1.0e-25 1.0e-25 100 100
+write_dump all custom dump.min id mol type x y z
+
+# ------------- Equilibration 1 on group mob
+
+thermo          1000
+thermo_style    custom step temp ke pe te press lx ly lz
+thermo_modify   lost warn norm yes lost/bond warn
+
+timestep		${dt}
+reset_timestep	0
+
+velocity        all create ${temperature} 1938072 dist gaussian #mom yes rot no
+fix 			1 all nve
+fix             langevin all langevin ${temperature} ${temperature} ${tdamp} 32258453 zero yes
+dump            1 all custom 10000 dump.nve1.* id mol type x y z
+
+run             100000
+
+unfix           1
+undump		1
+unfix		langevin
+
+#---------------- 3PF TEST
+
+variable        trun equal floor(${id}/(${vel}*${dt})) # Total indentation timesteps.	
+variable        tdump equal floor(1.0/(${vel}*${dt}))  # Dump indentation every this many timesteps.
+
+reset_timestep 	0
+compute 		1 all stress/atom NULL virial
+compute         pe_all all pe/atom
+compute         ke_all all ke/atom
+thermo			1000
+variable 		z1		equal vdisplace(${ih},-${vel}) # initial high and velocity of indentation, in Angs/fs
+variable        hmax	equal bound(film,zmax)
+variable        yI      equal (ylo+yhi)/2
+variable        yIa      equal (yhi-ylo*4)/5
+variable        yIb      equal (yhi*4-ylo)/5
+print           "hmax = ${hmax}"
+
+#dump			1 all custom ${tdump} dump.indent.* id mol type x y z vx vy vz c_1[1] c_1[2] c_1[3] c_1[4] c_1[5] c_1[6] c_pe_all c_ke_all
+dump			1 all custom ${tdump} dump.indent.* id mol type x y z vx vy vz c_pe_all c_ke_all
+
+fix 			1 all nve
+fix 			4 all indent $K cylinder x ${yI} v_z1 $R units box 
+fix                     4a all indent $K cylinder x ${yIa} ${ib} $R units box
+fix                     4b all indent $K cylinder x ${yIb} ${ib} $R units box
+fix 			5 all ave/time 2 100 1000 v_z1 f_4 f_4[1] f_4[2] f_4[3] file temp.indent off 1
+
+thermo_style    custom step temp ke pe te press f_4[1] f_4[2] f_4[3]
+thermo_modify   temp central lost warn norm yes lost/bond warn
+run 			${trun}
+
+undump			1
+unfix 			4
+unfix 			5
+
+#---------------- Holding the indenter
+
+variable        z1_min equal ${ih}-${id} # initial high and velocity of indentation, in Angs/fs
+
+dump            1 all custom ${tdump} dump.hold.* id mol type x y z vx vy vz c_1[1] c_1[2] c_1[3] c_1[4] c_1[5] c_1[6] c_pe_all c_ke_all
+fix             4 all indent $K cylinder x ${yI} ${z1_min} $R units box 
+fix             5 all ave/time 2 10 100 v_z1 f_4 f_4[1] f_4[2] f_4[3] file temp.hold off 1
+
+thermo_style    custom step temp ke pe te press f_4[1] f_4[2] f_4[3]
+thermo_modify   temp central lost warn norm yes lost/bond warn
+run             ${t_hold} #300000
+
+undump          1
+unfix           4
+unfix           5
+
+#---------------- Removing the indenter
+
+variable        z2 equal vdisplace(${z1_min},${vel}) # initial high and velocity of indentation, in Angs/fs
+
+dump            1 all custom ${tdump} dump.remove.* id mol type x y z vx vy vz c_1[1] c_1[2] c_1[3] c_1[4] c_1[5] c_1[6] c_pe_all c_ke_all
+fix             4 all indent $K cylinder x ${yI} v_z2 $R units box 
+fix             5 all ave/time 2 10 100 v_z2 f_4 f_4[1] f_4[2] f_4[3] file temp.remove off 1
+
+thermo_style    custom step temp ke pe te press f_4[1] f_4[2] f_4[3]
+thermo_modify   temp central lost warn norm yes lost/bond warn
+run             ${trun}
+
+undump          1
+unfix           4
+unfix           5
+
+######################################
+# SIMULATION DONE

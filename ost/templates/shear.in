@@ -1,0 +1,93 @@
+#include lmp.in
+#variable temperature    equal 300
+#variable dt             equal 1
+#variable pressure       equal 1  #atmospheres
+#variable strain_total   equal 0.25
+#variable strainrate     equal 1.0e8
+#variable direction      equal xz or yz
+ 
+variable tdamp equal 100*${dt}
+variable pdamp equal 1000*${dt}
+variable pxx equal pxx
+variable pyy equal pyy
+variable pzz equal pzz
+
+thermo_style    custom step temp ke pe etotal press lx ly lz vol
+thermo_modify   lost warn norm yes
+
+# Energy minimization
+
+min_style cg
+minimize 1.0e-25 1.0e-25 100000 1000000
+
+# NPT equilibration
+
+velocity       all create ${temperature} 1938072 mom yes rot no
+fix            1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
+fix            2 all momentum 1 linear 1 1 1 rescale
+
+thermo 1000
+thermo_style    custom step temp ke pe etotal press lx ly lz vol fmax
+thermo_modify lost ignore flush yes
+
+neighbor 1.0 bin
+neigh_modify every 1 delay 5 check yes
+
+dump            1 all custom 10000 equilibrium.*.dump id type x y z
+
+timestep 	${dt}
+run             100000
+unfix 1
+unfix 2
+undump 1
+
+# SHEAR DEFORMATION
+reset_timestep  0
+fix            1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
+fix            2 all momentum 1 linear 1 1 1 rescale
+
+#fix		1 all nve
+#fix		2 all langevin ${temperature} ${temperature} ${tdamp} 32258453 zero yes
+#fix_modify      1 temp mytemp
+
+variable srate  equal ${strainrate}
+variable srate1 equal "v_srate / 1.0e15"
+variable steps  equal "abs(v_strain_total / v_srate1)"
+
+# Direction
+#fix             3 all deform 1 xz erate ${srate1} units box remap x
+fix             3 all deform 1 ${direction} erate ${srate1} units box remap x
+
+# Output strain and stress info to file
+# for units real, pressure is in [atmospheres] = 0.101325 [MPa]
+# p2, p3, p4 are in MPa
+variable strain equal "step*v_srate1"
+variable p1 equal "v_strain"
+variable p2 equal "-pxx*0.101325"
+variable p3 equal "-pyy*0.101325"
+variable p4 equal "-pzz*0.101325"
+variable p5 equal "-pxz*0.101325"
+variable p6 equal "-pyz*0.101325"
+variable p7 equal "-pxy*0.101325"
+variable step equal step
+variable etotal equal etotal
+variable thermo equal "abs(1e12 / v_strainrate)"
+variable dump_steps equal ${steps}/100
+fix def1 all print ${thermo} "${step} ${etotal} ${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7}" file shear.dat screen no
+fix def2 all ave/time 2 100 ${thermo} v_p1 v_p2 v_p3 v_p4 v_p5 v_p6 v_p7 file shear_mean.dat
+
+# Display thermo
+thermo  ${thermo}
+thermo_style    custom step temp pe ke etotal v_strain v_p5 v_p6 v_p7 press
+thermo_modify lost ignore flush yes #temp mytemp lost ignore flush yes
+
+neighbor 1.0 bin
+neigh_modify every 1 delay 5 check yes
+
+dump            1 all custom ${dump_steps} shear.*.dump id type x y z
+
+timestep	${dt}
+run             ${steps}
+
+######################################
+# SIMULATION DONE

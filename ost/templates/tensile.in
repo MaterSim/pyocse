@@ -1,0 +1,82 @@
+#include lmp.in
+#variable temperature    equal 300
+#variable pressure       equal 1  #atmospheres
+#variable dt equal 1
+#variable strain_total   equal 0.1
+#variable strainrate     equal 1.0e8
+
+variable tdamp equal 100*${dt}
+variable pdamp equal 1000*${dt}
+
+variable pxx equal pxx
+variable pyy equal pyy
+variable pzz equal pzz
+
+thermo_style    custom step temp ke pe etotal press v_pxx v_pyy v_pzz lx ly lz vol
+thermo_modify   lost warn norm yes
+
+# Energy minimization
+
+min_style cg
+minimize 1.0e-25 1.0e-25 100000 1000000
+
+# NPT equilibration
+
+velocity       all create ${temperature} 1938072 mom yes rot no
+fix            1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
+fix            2 all momentum 1 linear 1 1 1 rescale
+
+thermo 1000
+thermo_style    custom step temp ke pe etotal press pxx pyy pzz lx ly lz vol fmax
+thermo_modify lost ignore flush yes
+
+neighbor 1.0 bin
+neigh_modify every 1 delay 5 check yes
+
+dump            1 all custom 10000 equilibrium.*.dump id type x y z
+
+timestep 	${dt}
+run             100000
+unfix 1
+unfix 2
+undump 1
+
+# TENSILE DEFORMATION
+reset_timestep  0
+fix             1 all npt temp ${temperature} ${temperature} ${tdamp} x ${pressure} ${pressure} ${pdamp} y ${pressure} ${pressure} ${pdamp}
+fix             2 all momentum 1 linear 1 1 0 rescale
+
+variable srate  equal ${strainrate}
+variable srate1 equal "v_srate / 1.0e15"
+variable steps  equal ${strain_total}/${srate1}
+fix             3 all deform 1 z erate ${srate1} units box remap x
+
+# Output strain and stress info to file
+# for units real, pressure is in [atmospheres] = 0.101325 [MPa]
+# p2, p3, p4 are in MPa
+variable strain equal "step*v_srate1"
+variable p1 equal "v_strain"
+variable p2 equal "-pxx*0.101325"
+variable p3 equal "-pyy*0.101325"
+variable p4 equal "-pzz*0.101325"
+variable step equal step
+variable thermo	equal 1e12/${strainrate}
+variable dump_steps equal ${steps}/100
+fix def1 all print ${thermo} "${step} ${p1} ${p2} ${p3} ${p4}" file tensile.dat screen no
+fix def2 all ave/time 2 100 ${thermo} v_p1 v_p2 v_p3 v_p4 file tensile_mean.dat
+
+# Display thermo
+thermo  ${thermo}
+thermo_style    custom step temp atoms pe ke etotal lx ly lz v_strain v_p2 v_p3 v_p4 press
+thermo_modify lost ignore flush yes
+
+neighbor 1.0 bin
+neigh_modify every 1 delay 5 check yes
+
+dump            1 all custom ${dump_steps} tensile.*.dump id type x y z
+
+timestep	${dt}
+run             ${steps}
+
+######################################
+# SIMULATION DONE
