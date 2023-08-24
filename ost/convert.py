@@ -91,9 +91,7 @@ def convert_openff(
         molecule = Molecule.from_rdkit(rdkit_mol)
         topology = Topology.from_molecules(molecule)
         forcefield = ForceField(forcefield_name)
-        print(forcefield_name); print(molecule)
         out = Interchange.from_smirnoff(force_field=forcefield, topology=topology)
-        print(out._to_parmed())
         struc = ParmEdStructure.from_structure(out._to_parmed())
         struc.box = None
 
@@ -106,8 +104,8 @@ def convert_openff(
         "mol_spin_multiplicity": spin_multiplicity,
         "data": {"omm_info": struc.ffdic},
     }
-    for k in struc.ffdic['omm_forcefield'][0]['ForceField'].keys(): 
-        print(struc.ffdic['omm_forcefield'][0]['ForceField'][k])
+    #for k in struc.ffdic['omm_forcefield'][0]['ForceField'].keys(): 
+    #    print(struc.ffdic['omm_forcefield'][0]['ForceField'][k])
     if savetoml:
         dump_toml(dic, savetoml)
 

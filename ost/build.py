@@ -57,7 +57,7 @@ class Builder():
             residuename='U{:02d}'.format(i)
             ffdic = d["data"].pop("omm_info")
             #print(ffdic["omm_forcefield"])
-            for a in ffdic["mol2"]: print(a)
+            #for a in ffdic["mol2"]: print(a)
             molecule = ommffs_to_paramedstruc(ffdic["omm_forcefield"], 
                                               ffdic["mol2"], 
                                               cls=cls)
