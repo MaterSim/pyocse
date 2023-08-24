@@ -1,11 +1,12 @@
-from molff.build import Builder
+from ost.build import Builder
 from pyxtal.db import database
 import numpy as np
 import os
 
 # Set the crystal model
 data = [
-        ('BIYRIM01', [[1,0,0], [0,1,0], [0,0,1]]),
+        #('BIYRIM01', [[1,0,0], [0,1,0], [0,0,1]]),
+        ('ANLINB02', [[1,0,0], [0,1,0], [0,0,1]]),
        ]
 style = 'openff' #'gaff'
 db = database('dataset/mech.db')

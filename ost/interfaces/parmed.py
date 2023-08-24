@@ -13,7 +13,7 @@ from parmed.modeller.residue import ResidueTemplateContainer
 from parmed.openmm import OpenMMParameterSet, energy_decomposition_system, load_topology
 from xmltodict import parse
 
-from molff.utils import dict_to_xmlstr, temporary_directory_change
+from ost.utils import dict_to_xmlstr, temporary_directory_change
 
 
 class ParmEdStructure(Structure):
@@ -537,5 +537,4 @@ def ommffs_to_paramedstruc(ommffs, mol2strs, cls=ParmEdStructure, cleanup=True):
                 xmlstr = dict_to_xmlstr(ommff)
                 open(fxmls[-1], "w").write(xmlstr)
             pdstruc = cls.from_xml_mol2(fxmls, f"{base}.mol2")
-
     return pdstruc

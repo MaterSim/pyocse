@@ -2,7 +2,7 @@
 import shutil
 from pathlib import Path
 from typing import Dict, Optional, Tuple
-from molff.utils import procrun
+from ost.utils import procrun
 
 
 # modules

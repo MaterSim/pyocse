@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import numpy as np
 import toml
-from molff.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
-from molff.lmp import LAMMPSStructure
+from ost.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
+from ost.lmp import LAMMPSStructure
 from pkg_resources import resource_filename
 from monty.serialization import loadfn
 
@@ -35,12 +35,12 @@ class Builder():
             self.smiles = ".".join(smis)
         else:
             self.dics = []
-            from molff.convert import convert_gaff, convert_openff
+            from ost.convert import convert_gaff, convert_openff
             for i, smi in enumerate(smiles):
                 smi = smiles[i]
                 if style == 'gaff':
                     self.dics.append(convert_gaff(smiles=smi, molname=str(i)))#, cleanup=False))
-                else: #openff
+                else: # openff, needs to debug
                     self.dics.append(convert_openff(smiles=smi, molname=str(i)))
                     
             self.smiles = ".".join(smiles)
@@ -56,6 +56,8 @@ class Builder():
         for i, d in enumerate(self.dics):
             residuename='U{:02d}'.format(i)
             ffdic = d["data"].pop("omm_info")
+            #print(ffdic["omm_forcefield"])
+            for a in ffdic["mol2"]: print(a)
             molecule = ommffs_to_paramedstruc(ffdic["omm_forcefield"], 
                                               ffdic["mol2"], 
                                               cls=cls)
@@ -72,6 +74,7 @@ class Builder():
             xtal: pyxtal structure
             cif: cif file path
             para_min: whether or not create super cell
+            T: temperature, if yes, will run npt equilibration
         """
         from pyxtal import pyxtal
 
@@ -683,7 +686,7 @@ class Builder():
         if filename is None: filename = _task['type'] + '.in'
 
         # Read the template information
-        template = (rf("molff", "templates/" + _task['type'] + '.in'))
+        template = (rf("ost", "templates/" + _task['type'] + '.in'))
         with open(template, 'r') as f0:
             lines = f0.readlines()
 
@@ -729,8 +732,8 @@ if __name__ == "__main__":
     import os
 
     #=== Set the crystal model
-    cif  = "molff/data/ACSALA17.cif"
-    toml_file = "molff/data/aspirin_gas.toml"
+    cif  = "ost/data/ACSALA17.cif"
+    toml_file = "ost/data/aspirin_gas.toml"
     bu = Builder(toml_files=[toml_file])
     bu.set_xtal(cif=cif)
     

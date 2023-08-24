@@ -31,13 +31,12 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=[
-        "pyxtal>=0.5.6", 
-        "parmed>=3.4.3", 
-        "openmm>=7.6.0", 
-        "toml", 
-        "xmltodict"
-    ],
-    python_requires=">=3.7, <=3.10",
+    #install_requires=[
+        #"parmed>=3.4.3", 
+        #"openmm>=7.6.0", 
+        #"toml", 
+        #"xmltodict"
+    #],
+    #python_requires=">=3.7, <=3.10",
     license="MIT",
 )

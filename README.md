@@ -9,7 +9,7 @@ This is a public repository that aims to automate the simulation of organic crys
 go to the directory
 ```
 conda install -c conda-forge mamba
-mamba env create -n ost python=3.9
+mamba env create -n ost 
 conda activate ost
 pip install .
 ```

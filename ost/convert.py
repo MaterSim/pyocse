@@ -2,10 +2,10 @@
 from pathlib import Path
 from typing import Optional
 
-from molff.interfaces.ambertools import run_antechamber
-from molff.interfaces.parmed import amber_to_pdstruc, ommxml_to_pdstruc, ParmEdStructure
-from molff.interfaces.rdkit import smiles_to_ase_and_pmg, RDKIT
-from molff.utils import dump_toml, temporary_directory_change
+from ost.interfaces.ambertools import run_antechamber
+from ost.interfaces.parmed import amber_to_pdstruc, ommxml_to_pdstruc, ParmEdStructure
+from ost.interfaces.rdkit import smiles_to_ase_and_pmg, RDKIT
+from ost.utils import dump_toml, temporary_directory_change
 
 from openff.toolkit.topology import Molecule, Topology
 from openff.toolkit.typing.engines.smirnoff import ForceField
@@ -91,8 +91,9 @@ def convert_openff(
         molecule = Molecule.from_rdkit(rdkit_mol)
         topology = Topology.from_molecules(molecule)
         forcefield = ForceField(forcefield_name)
+        print(forcefield_name); print(molecule)
         out = Interchange.from_smirnoff(force_field=forcefield, topology=topology)
-
+        print(out._to_parmed())
         struc = ParmEdStructure.from_structure(out._to_parmed())
         struc.box = None
 
@@ -105,6 +106,8 @@ def convert_openff(
         "mol_spin_multiplicity": spin_multiplicity,
         "data": {"omm_info": struc.ffdic},
     }
+    for k in struc.ffdic['omm_forcefield'][0]['ForceField'].keys(): 
+        print(struc.ffdic['omm_forcefield'][0]['ForceField'][k])
     if savetoml:
         dump_toml(dic, savetoml)
 

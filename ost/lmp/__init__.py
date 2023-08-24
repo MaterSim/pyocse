@@ -1,4 +1,4 @@
-from molff.lmp.calculator import LAMMPSAseCalculator, LAMMPSCalculator
-from molff.lmp.structure import LAMMPSStructure, LAMMPSStructureFourier
+from ost.lmp.calculator import LAMMPSAseCalculator, LAMMPSCalculator
+from ost.lmp.structure import LAMMPSStructure, LAMMPSStructureFourier
 
 __all__ = ["LAMMPSStructure", "LAMMPSStructureFourier", "LAMMPSCalculator", "LAMMPSAseCalculator"]

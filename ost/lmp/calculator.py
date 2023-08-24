@@ -8,7 +8,7 @@ from ase.calculators.lammps import convert
 from ase.calculators.lammpslib import LAMMPSlib
 from ase.geometry import wrap_positions
 
-from molff.utils import which_lmp
+from ost.utils import which_lmp
 
 seed = 123456789
 
