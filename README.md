@@ -40,5 +40,5 @@ check the `3pf.py`
 ## Contacts:
 
 - Qiang Zhu (qzhu8@uncc.edu)
-- Shinnosuke Hattori (shinnosuke.hattori@gmail.com)
+- Shinnosuke Hattori (shinnosuke.hattori@sony.com)
 
