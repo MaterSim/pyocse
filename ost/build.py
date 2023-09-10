@@ -366,7 +366,50 @@ class Builder():
         self.ase_slab = atoms
         self.ase_slab_mol_list = mol_list
         self.lammps_slab = self.get_ase_lammps(atoms)
+
+    def rotate_molecules(self, ase_struc, mol_list, vertices, rotation):
+        """
+        selectively rotate some molecules based on boundary conditions.
+    
+        Args:
+            ase_struc: ase atoms
+            mol_list: list of molecular ids
+            vertices (tuple): vertices in xy plane to define the twinning region
+            rotation (tuple): (rotation axis, angle)
+        """
+        from scipy.spatial import ConvexHull
+        from shapely.geometry import Point, Polygon
+        from scipy.spatial.transform import Rotation
+
+        N_per_mols = [len(self.molecules[i].atoms) for i in mol_list]
+        centers = np.zeros([len(N_per_mols), 3])
+        pos = ase_struc.get_positions()
         
+        #print(rotation)
+        (axis, angle) = rotation
+        count = 0 
+    
+        # Compute the convex hull of the vertices
+        convex_hull = ConvexHull(vertices)
+        convex_hull_vertices = [vertices[i] for i in convex_hull.vertices]
+        convex_hull_polygon = Polygon(convex_hull_vertices)
+        
+        for i, N_per_mol in enumerate(N_per_mols):
+            start = sum(N_per_mols[:i])
+            end = start + N_per_mols[i]
+            tmp = pos[start:end, :]
+            center = tmp.mean(axis=0)
+            center_frac = ase_struc.cell.scaled_positions(center)
+            # Check if (x, y) is inside the parallelogram defined by its vertices.
+            if len(tmp)>1 and convex_hull_polygon.contains(Point(center_frac[0], center_frac[1])):
+                count += 1
+                print('Twinning', i, count, len(mol_list), center_frac)
+                r2 = Rotation.from_rotvec(axis*angle)
+                pos[start:end, :] = np.dot(tmp-center, r2.as_matrix().T) + center
+        ase_struc.set_positions(pos)
+        return ase_struc
+
+
     def cut_layers(self, atoms, mol_list, layers, tol=None):
         """
         cut the supercell structure by number of molecular layers
@@ -464,7 +507,7 @@ class Builder():
                         mtype = 0
                     of.write("{:6d} {:2d} {:9.3f} {:9.3f} {:9.3f}\n".format(id, mtype, *center))
 
-    def get_molecular_centers(self, atoms, mol_list):
+    def get_molecular_centers(self, atoms, mol_list, absolute=False):
         """
         Quickly collect the molecular center data for a given atoms
 
@@ -479,7 +522,11 @@ class Builder():
         for i, N_per_mol in enumerate(N_per_mols):
             start = sum(N_per_mols[:i])
             end = start + N_per_mols[i]
-            centers[i] = pos[start:end].mean(axis=0)
+            tmp = pos[start:end].mean(axis=0)
+            if not absolute:
+                centers[i] = atoms.cell.scaled_positions(tmp)
+            else:
+                centers[i] = tmp
         return centers
 
     def get_ase_lammps(self, atoms):
