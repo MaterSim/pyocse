@@ -367,7 +367,7 @@ class Builder():
         self.ase_slab_mol_list = mol_list
         self.lammps_slab = self.get_ase_lammps(atoms)
 
-    def rotate_molecules(self, ase_struc, mol_list, vertices, rotation):
+    def rotate_molecules(self, ase_struc, mol_list, vertices, rotation, ids):
         """
         selectively rotate some molecules based on boundary conditions.
     
@@ -401,7 +401,7 @@ class Builder():
             center = tmp.mean(axis=0)
             center_frac = ase_struc.cell.scaled_positions(center)
             # Check if (x, y) is inside the parallelogram defined by its vertices.
-            if len(tmp)>1 and convex_hull_polygon.contains(Point(center_frac[0], center_frac[1])):
+            if len(tmp)>1 and convex_hull_polygon.contains(Point(center_frac[ids[0]], center_frac[ids[1]])):
                 count += 1
                 print('Twinning', i, count, len(mol_list), center_frac)
                 r2 = Rotation.from_rotvec(axis*angle)

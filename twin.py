@@ -5,15 +5,15 @@ import os
 
 # Set the crystal model
 data = [
-        ('ANLINB02', [[0,1,0], [1,0,0], [0,0,-1]]),
+        ('ANLINB02', [[0,1,0], [0,0,1], [1,0,0]]),
        ]
 
 #style = 'gaff' #'openff'
 name = 'twin'
 style = 'openff'
 db = database('dataset/mech.db')
-dim = [80, 60, 20]
-vertices = [(0, 0), (0.5, 0), (0.5, 1), (1, 1)]
+dim = [100, 20, 50]
+vertices = [(0.4, 0), (0.6, 0), (0.8, 1), (1.0, 1)]
 angle = 30
 
 for d in data:
@@ -32,9 +32,9 @@ for d in data:
     print('Unitcell:   ', bu.xtal.get_cell_lengths_and_angles())
     print('Matrix:     ', matrix)
 
-    bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix, dim=dim)
-    rotation = (np.array([0, 0, 1]), angle)
-    atoms = bu.rotate_molecules(bu.ase_slab, bu.ase_slab_mol_list, vertices, rotation)
+    bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix, dim=dim, vacuum=50)
+    rotation = (np.array([0, 1, 0]), angle)
+    atoms = bu.rotate_molecules(bu.ase_slab, bu.ase_slab_mol_list, vertices, rotation, ids=[0, 2])
 
     # Directory
     folder = name + '-' +code + '-' + style
@@ -44,11 +44,11 @@ for d in data:
 
     # Example 1: tensile, assuming z direction
     task1 = {'type': 'tensile',
-            'temperature': 200,
-            'pressure': 1.0,
-            'max_strain': 0.2,
-            'rate': 2e+8,
-           }
+             'temperature': 200,
+             'pressure': 1.0,
+             'max_strain': 0.2,
+             'rate': 2e+8,
+            }
     print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
     bu.set_task(task1)
     atoms.write(str(angle)+'.xyz', format='extxyz')
