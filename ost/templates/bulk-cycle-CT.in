@@ -40,20 +40,21 @@ thermo_modify   lost warn norm yes
 #======================Energy minimization
 min_style       cg
 minimize        1.0e-25 1.0e-25 100000 1000000
-run             0
 
 thermo          1000
-thermo_style    custom step temp atoms pe ke etotal lx ly press
+thermo_style    custom step temp pe ke etotal lx ly press
 thermo_modify   lost warn norm yes
 timestep 	    ${dt}
 
 #======================NPT equilibration
 velocity        all create ${temperature} 1938072 mom yes rot no
 fix             1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
+fix             2 all momentum 1 linear 1 1 1 rescale
 
 dump            1 all custom 20000 equilibrium.*.dump id type x y z
 run             ${trelax} 
 unfix           1
+unfix           2
 undump          1
 reset_timestep  0
 
@@ -65,20 +66,23 @@ dump            1 all custom ${dump_steps} *.dump id type x y z
 fix             3 all deform 1 y erate -${srate} units box remap x
 fix             def2 all ave/time 2 100 ${thermo} v_strain1 v_p2 v_p3 v_p4 v_pe file compression_mean.dat
 
-thermo_style    custom step temp atoms pe ke etotal lx ly v_strain1 press
+thermo_style    custom step temp pe ke etotal lx ly v_strain1 press
 run             ${steps}
 unfix           3
+unfix           def2
 
 #===============TENSILE 
 fix             2 all deform 1 y erate ${srate} units box remap x
 fix             def1 all ave/time 2 100 ${thermo} v_strain2 v_p2 v_p3 v_p4 v_pe file tensile_mean.dat
 
-thermo_style    custom step temp atoms pe ke etotal lx ly v_strain2 press
+thermo_style    custom step temp pe ke etotal lx ly v_strain2 press
 run             ${steps}
 unfix           2
+unfix           def1
 
 
 #======================NPT equilibration
+unfix           1
 fix             4 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
 run             ${trelax} 
 unfix           4
