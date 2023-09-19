@@ -1,0 +1,88 @@
+include lmp.in
+variable temperature equal      300.000
+variable pressure equal         1.000
+variable dt equal               1.000
+variable trelax equal           100000
+variable strain_total equal     0.15
+variable strainrate equal       2e+8
+
+variable srate  equal           ${strainrate}/1e15
+variable thermo	equal           1e12/${strainrate}
+variable tdamp equal            100*${dt}
+variable pdamp equal            1000*${dt}
+
+# for units real, pressure is in [atmospheres] = 0.101325 [MPa]
+variable pxx        equal pxx
+variable pyy        equal pyy
+variable pzz        equal pzz
+variable pe         equal pe
+variable step       equal step
+variable steps      equal ${strain_total}/${srate}
+variable dump_steps equal ${steps}/100
+variable p2         equal "-pxx*0.101325"
+variable p3         equal "-pyy*0.101325"
+variable p4         equal "-pzz*0.101325"
+
+print "strainrate ${strainrate}"
+print "srate ${srate}"
+print "steps ${steps}"
+print "dump_steps ${dump_steps}"
+
+# variable for tension
+variable strain1    equal "v_step*v_srate"
+variable strain2    equal "(1+v_strain_total) - (step-v_steps)*v_srate"
+
+neighbor 1.0    bin
+neigh_modify    every 1 delay 5 check yes
+thermo_style    custom step temp ke pe etotal press v_pxx v_pyy v_pzz lx ly lz vol
+thermo_modify   lost warn norm yes
+
+#======================Energy minimization
+min_style       cg
+minimize        1.0e-25 1.0e-25 100000 1000000
+run             0
+
+thermo          1000
+thermo_style    custom step temp atoms pe ke etotal lx ly press
+thermo_modify   lost warn norm yes
+timestep 	    ${dt}
+
+#======================NPT equilibration
+velocity        all create ${temperature} 1938072 mom yes rot no
+fix             1 all npt temp ${temperature} ${temperature} ${tdamp} x ${pressure} ${pressure} ${pdamp} y ${pressure} ${pressure} ${pdamp}
+
+dump            1 all custom 20000 equilibrium.*.dump id type x y z
+run             ${trelax} 
+unfix           1
+undump          1
+reset_timestep  0
+
+#=====================Deformation
+fix             1 all npt temp ${temperature} ${temperature} ${tdamp} y ${pressure} ${pressure} ${pdamp}
+dump            1 all custom ${dump_steps} *.dump id type x y z
+
+#===============TENSILE 
+fix             2 all deform 1 x erate ${srate} units box remap x
+fix             def1 all ave/time 2 100 ${thermo} v_strain1 v_p2 v_p3 v_p4 v_pe file tensile_mean.dat
+
+thermo_style    custom step temp atoms pe ke etotal lx ly v_strain1 press
+run             ${steps}
+unfix           2
+
+#================COMPRESSION
+fix             3 all deform 1 x erate -${srate} units box remap x
+fix             def2 all ave/time 2 100 ${thermo} v_strain2 v_p2 v_p3 v_p4 v_pe file compression_mean.dat
+
+thermo_style    custom step temp atoms pe ke etotal lx ly v_strain2 press
+run             ${steps}
+unfix           3
+
+
+#======================NPT equilibration
+fix             4 all npt temp ${temperature} ${temperature} ${tdamp} x ${pressure} ${pressure} ${pdamp} y ${pressure} ${pressure} ${pdamp}
+run             ${trelax} 
+unfix           4
+
+######################################
+undump          1
+# SIMULATION DONE

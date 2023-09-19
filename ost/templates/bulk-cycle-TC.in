@@ -2,7 +2,7 @@ include lmp.in
 variable temperature equal      300.000
 variable pressure equal         1.000
 variable dt equal               1.000
-variable trelax equal           10000
+variable trelax equal           100000
 variable strain_total equal     0.15
 variable strainrate equal       2e+8
 
@@ -28,9 +28,9 @@ print "srate ${srate}"
 print "steps ${steps}"
 print "dump_steps ${dump_steps}"
 
-# variable for tension/compression
-variable strain1    equal "1-v_step*v_srate"
-variable strain2    equal "(1-v_strain_total) + (step-v_steps)*v_srate"
+# variable for tension
+variable strain1    equal "v_step*v_srate"
+variable strain2    equal "(1+v_strain_total) - (step-v_steps)*v_srate"
 
 neighbor 1.0    bin
 neigh_modify    every 1 delay 5 check yes
@@ -49,7 +49,7 @@ timestep 	    ${dt}
 
 #======================NPT equilibration
 velocity        all create ${temperature} 1938072 mom yes rot no
-fix             1 all npt temp ${temperature} ${temperature} ${tdamp} x ${pressure} ${pressure} ${pdamp} y ${pressure} ${pressure} ${pdamp}
+fix             1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
 
 dump            1 all custom 20000 equilibrium.*.dump id type x y z
 run             ${trelax} 
@@ -57,30 +57,29 @@ unfix           1
 undump          1
 reset_timestep  0
 
-thermo          ${thermo}
-#=====================Deformation
-fix             1 all npt temp ${temperature} ${temperature} ${tdamp} y ${pressure} ${pressure} ${pdamp}
+#=====================Deformation on (010)
+fix             1 all npt temp ${temperature} ${temperature} ${tdamp} x ${pressure} ${pressure} ${pdamp} z ${pressure} ${pressure} ${pdamp}
 dump            1 all custom ${dump_steps} *.dump id type x y z
 
-#================COMPRESSION
-fix             3 all deform 1 x erate -${srate} units box remap x
-fix             def2 all ave/time 2 100 ${thermo} v_strain1 v_p2 v_p3 v_p4 v_pe file compression_mean.dat
+#===============TENSILE 
+fix             2 all deform 1 y erate ${srate} units box remap x
+fix             def1 all ave/time 2 100 ${thermo} v_strain1 v_p2 v_p3 v_p4 v_pe file tensile_mean.dat
 
 thermo_style    custom step temp atoms pe ke etotal lx ly v_strain1 press
 run             ${steps}
-unfix           3
+unfix           2
 
-#===============TENSILE 
-fix             2 all deform 1 x erate ${srate} units box remap x
-fix             def1 all ave/time 2 100 ${thermo} v_strain2 v_p2 v_p3 v_p4 v_pe file tensile_mean.dat
+#================COMPRESSION
+fix             3 all deform 1 y erate -${srate} units box remap x
+fix             def2 all ave/time 2 100 ${thermo} v_strain2 v_p2 v_p3 v_p4 v_pe file compression_mean.dat
 
 thermo_style    custom step temp atoms pe ke etotal lx ly v_strain2 press
 run             ${steps}
-unfix           2
+unfix           3
 
 
 #======================NPT equilibration
-fix             4 all npt temp ${temperature} ${temperature} ${tdamp} x ${pressure} ${pressure} ${pdamp} y ${pressure} ${pressure} ${pdamp}
+fix             4 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
 run             ${trelax} 
 unfix           4
 
