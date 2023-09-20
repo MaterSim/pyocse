@@ -2,7 +2,7 @@ include lmp.in
 variable temperature equal      300.000
 variable pressure equal         1.000
 variable dt equal               1.000
-variable trelax equal           100000
+variable trelax equal           10000 #0
 variable strain_total equal     0.200
 variable strainrate equal       1.000000e+08
 variable direction string       xy
@@ -18,7 +18,7 @@ variable pyy        equal pyy
 variable pzz        equal pzz
 variable pe         equal pe
 variable step       equal step
-variable steps      equal abs(v_strain_total / v_srate)
+variable steps      equal abs(${strain_total}/${srate})
 variable dump_steps equal ${steps}/100
 variable p2         equal "-pxx*0.101325"
 variable p3         equal "-pyy*0.101325"
@@ -36,8 +36,8 @@ print "dump_steps ${dump_steps}"
 variable strain1    equal "1+v_step*v_srate"
 variable strain2    equal "(1+v_steps*v_srate) - (step-v_steps)*v_srate"
 
-thermo 1000
-neighbor 1.0    bin
+thermo          1000
+neighbor        1.0    bin
 neigh_modify    every 1 delay 5 check yes
 timestep 	    ${dt}
 
@@ -63,16 +63,16 @@ dump            1 all custom ${dump_steps} shear.*.dump id type x y z
 #======================== SHEAR DEFORMATION
 fix             1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
 
-#======================== plus direction
+#======================== load
 fix             2 all deform 1 ${direction} erate ${srate1} units box remap x
 fix             def1 all ave/time 2 100 ${thermo} v_strain1 v_p2 v_p3 v_p4 v_p5 v_p6 v_p7 file shear1_mean.dat
 run             ${steps}
 unfix           2
 unfix           def1
 
-#======================== plus direction
+#======================== unload
 fix             3 all deform 1 ${direction} erate -${srate1} units box remap x
-fix             def2 all ave/time 2 100 ${thermo} v_strain2 v_p2 v_p3 v_p4 v_p5 v_p6 v_p7 file shear1_mean.dat
+fix             def2 all ave/time 2 100 ${thermo} v_strain2 v_p2 v_p3 v_p4 v_p5 v_p6 v_p7 file shear2_mean.dat
 run             ${steps}
 unfix           3
 unfix           def2
