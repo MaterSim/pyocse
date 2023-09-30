@@ -1,86 +1,96 @@
 include lmp.in
 variable temperature equal      300.000
-variable pressure equal         1.000
+variable patm equal             1.000
 variable dt equal               1.000
-variable trelax equal           10000 #0
-variable strain_total equal     0.200
-variable strainrate equal       1.000000e+08
+variable trelax equal           100000
+variable strain_total equal     0.300
+variable strainrate equal       2.000000e+08
 variable direction string       xy
+variable deform_steps equal     50
 
 variable srate      equal ${strainrate}/1e15
 variable thermo     equal "abs(1e12 / v_strainrate)"
 variable tdamp      equal 100*${dt}
 variable pdamp      equal 1000*${dt}
-
-# for units real, pressure is in [atmospheres] = 0.101325 [MPa]
-variable pxx        equal pxx
-variable pyy        equal pyy
-variable pzz        equal pzz
 variable pe         equal pe
-variable step       equal step
+
+variable sxx        equal "-pxx*0.101325"
+variable syy        equal "-pyy*0.101325"
+variable szz        equal "-pzz*0.101325"
+variable sxz        equal "-pxz*0.101325"
+variable syz        equal "-pyz*0.101325"
+variable sxy        equal "-pxy*0.101325"
 variable steps      equal abs(${strain_total}/${srate})
-variable dump_steps equal ${steps}/100
-variable p2         equal "-pxx*0.101325"
-variable p3         equal "-pyy*0.101325"
-variable p4         equal "-pzz*0.101325"
-variable p5         equal "-pxz*0.101325"
-variable p6         equal "-pyz*0.101325"
-variable p7         equal "-pxy*0.101325"
+variable dump_steps equal ${steps}/${deform_steps}
+variable strain     equal "step*v_srate"
+variable    xcm     equal xcm(all,x)
+variable    ycm     equal xcm(all,y)
+variable    zcm     equal xcm(all,z)
+
+variable ele_string string "N C O C C C C C C C N O H H H H H H H H"
 
 print "strainrate ${strainrate}"
 print "srate ${srate}"
 print "steps ${steps}"
 print "dump_steps ${dump_steps}"
 
-# variable for tension/compression
-variable strain1    equal "1+v_step*v_srate"
-variable strain2    equal "(1+v_steps*v_srate) - (step-v_steps)*v_srate"
 
 thermo          1000
 neighbor        1.0    bin
 neigh_modify    every 1 delay 5 check yes
 timestep 	    ${dt}
+thermo_style    custom step temp ke pe etotal lx ly lz pxx pyy pzz pxy pxz pyz vol
 
 #======================== Energy minimization
-thermo_style    custom step temp ke pe etotal press lx ly lz vol
 min_style       cg
-minimize        1.0e-25 1.0e-25 100000 1000000
+minimize        1.0e-25 1.0e-25 100 100# 000 1000000
+fix             BoxRelax all box/relax tri 0.0  vmax 0.01 nreset 10 fixedpoint ${xcm} ${ycm} ${zcm}
+minimize        1.0e-25 1.0e-25 100 100# 000 1000000
+unfix           BoxRelax
+dump            1 all custom 10000 0.dump element id mol type x y z
+undump          1
+
+#========================= Global setting for NPT simulation
+fix             langevin all langevin ${temperature} ${temperature} ${tdamp} 32258453 zero yes
 
 #======================== NPT equilibration
 velocity        all create ${temperature} 1938072 mom yes rot no
-fix             1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
-fix             2 all momentum 1 linear 1 1 1 rescale 
+#fix             1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
+fix             1 all nph tri ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
 
-dump            1 all custom 10000 equilibrium.*.dump id type x y z
+dump            1 all custom 10000 equilibrium.*.dump element id mol type x y z
+dump_modify     1 element ${ele_string}
 run             ${trelax}
 unfix           1
-unfix           2
 undump          1
 
-reset_timestep  0
-dump            1 all custom ${dump_steps} shear.*.dump id type x y z
-
 #======================== SHEAR DEFORMATION
-fix             1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
+reset_timestep  0
+dump            1 all custom ${dump_steps} shear.*.dump element id mol type x y z
+dump_modify     1 element ${ele_string}
+compute         cc1 all chunk/atom molecule
+compute         myChunk all com/chunk cc1
+
+fix             1 all nph x ${patm} ${patm} ${pdamp} y ${patm} ${patm} ${pdamp} z ${patm} ${patm} ${pdamp} xz ${patm} ${patm} ${pdamp} yz ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
+fix             2 all ave/time 2 100 ${thermo} v_strain v_sxx v_syy v_szz v_sxz v_syz v_sxy v_pe file output.dat
+fix             6 all ave/time 2 100 ${thermo} c_myChunk[*] file center.dat mode vector
 
 #======================== load
-fix             2 all deform 1 ${direction} erate ${srate1} units box remap x
-fix             def1 all ave/time 2 100 ${thermo} v_strain1 v_p2 v_p3 v_p4 v_p5 v_p6 v_p7 file shear1_mean.dat
-run             ${steps}
-unfix           2
-unfix           def1
-
-#======================== unload
-fix             3 all deform 1 ${direction} erate -${srate1} units box remap x
-fix             def2 all ave/time 2 100 ${thermo} v_strain2 v_p2 v_p3 v_p4 v_p5 v_p6 v_p7 file shear2_mean.dat
+fix             3 all deform 1 ${direction} erate ${srate} units box remap x
 run             ${steps}
 unfix           3
-unfix           def2
 
-#======================NPT equilibration
-unfix           1
-fix             4 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
-run             ${trelax} 
+#======================== unload
+fix             4 all deform 1 ${direction} erate -${srate} units box remap x
+run             ${steps}
 unfix           4
+
+unfix           6  # center.dat 
+unfix           2  # output.dat
+unfix           1
+#======================NPT equilibration
+fix             5 all nph tri ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
+run             ${trelax} 
+unfix           5
 ######################################
 # SIMULATION DONE
