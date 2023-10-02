@@ -339,7 +339,7 @@ class Builder():
         if reset:
             atoms = make_supercell(atoms, matrix)
             atoms = self.reset_cell_vectors(atoms)
-            atoms = self.reset_positions(atoms, mol_list) #can be expensive! QZ
+            atoms = self.reset_positions(atoms, mol_list*int(np.linalg.det(matrix))) #can be expensive! QZ
             atoms = self.reset_molecular_centers(atoms, mol_list)
             #atoms.write('reset.xyz', format='extxyz')
 
