@@ -66,7 +66,7 @@ class Builder():
             molecules.append(molecule)
         return molecules
 
-    def set_xtal(self, xtal=None, cif=None, para_min=None, T=None):
+    def set_xtal(self, xtal=None, cif=None, para_min=None, T=None, dimer=False):
         """
         Get the xtal models to self.structrure and self.numMols
 
@@ -118,6 +118,67 @@ class Builder():
         self.T = T
         if T is not None:
             self.update_cell_parameters(T)
+        
+        self.xtal.write('t1.xyz', format='extxyz')
+        if dimer:
+            self.xtal = self.reset_positions_by_dimer(self.xtal, self.xtal_mol_list)
+
+    def reset_positions_by_dimer(self, struc, mol_list, id=11, tol=3.4):
+        """
+        Reset atomic positions so that the paired molecules form the dimer
+        E.g., 4 aspirin molecules in the unit cell will be rearranged so
+        that both the first/second groups of 2 molecules forms the dimers.
+        The PBC condition is also considered when arranging the cartesian 
+        coordinates.
+        Note: this is only for aspirin so far
+
+        Args:
+            - struc: ase atoms
+            - id: atom id to form the short contact
+        """
+        N_atoms = len(self.molecules[mol_list[0]].atoms) 
+        N_mols = int(len(struc)/N_atoms)
+        inv_cell = np.linalg.inv(struc.cell.array)
+        visited = []
+        shifts = []
+        for i in range(N_mols):
+            if i not in visited:
+                id1 = i*N_atoms+id
+                pos1 = struc.get_positions()[id1]
+                visited.append(i)
+                shifts.append(np.zeros(3))
+                for j in range(N_mols):
+                    if i != j and j not in visited:
+                        id2 = j*N_atoms+id
+                        pos2 = struc.get_positions()[id2]
+                        dist = np.dot(pos2 - pos1, inv_cell)
+                        dist0 = np.dot(dist - np.round(dist), struc.cell.array)
+                        if np.linalg.norm(dist0) < tol:
+                            shift = np.round(dist)
+                            #print(pos2, pos1, dist, shift)
+                            pos2 -= shift
+                            #print('dimer', i, j, dist0)
+                            visited.append(j)
+                            shifts.append(np.dot(shift, struc.cell.array))
+                            break
+        p0 = struc.get_positions()
+        positions = np.zeros([len(struc), 3])
+        for it, mid in enumerate(visited):
+            positions[it*N_atoms:(it+1)*N_atoms] = p0[mid*N_atoms:(mid+1)*N_atoms] 
+            positions[it*N_atoms:(it+1)*N_atoms] -= shifts[it] 
+            #if it % 2 == 1:
+            #    print(p0[mid*N_atoms+id])
+            #    print(positions[it*N_atoms+id])
+            #    print(positions[(it-1)*N_atoms+id])
+            #    print(np.linalg.norm(positions[it*N_atoms+id]-positions[(it-1)*N_atoms+id]))
+            #if it == 0:
+            #    print(positions[:21])
+        
+        struc.set_positions(positions)
+        return struc
+        #self.xtal.write_
+        #self.xtal.write('t0.xyz', format='extxyz')
+
 
     def update_cell_parameters(self, T=300, P=1.0, folder='tmp'):
         """
@@ -306,7 +367,7 @@ class Builder():
         
     def set_slab(self, atoms, mol_list, matrix=None, hkl=None, replicate=1, dim=None,
                 layers=None, vacuum=None, separation=10.0,  
-                orthogonality=False, reset=True):
+                orthogonality=False, reset=True, dimer=False):
         """
         Create the slab structure from crystal with three steps:
             - 1. rotate the crystal (either matrix or indices) to make a new unitcell
@@ -326,6 +387,7 @@ class Builder():
             separation: float: amount of separation to the top of the slab
             orthogonality: whether or not impose orthogonality
             reset: reset atoms position based on PBC and orientation
+            dimer: whether or not reset mol center
         """
         from ase.build.supercells import make_supercell
 
@@ -341,6 +403,9 @@ class Builder():
             atoms = self.reset_cell_vectors(atoms)
             atoms = self.reset_positions(atoms, mol_list*int(np.linalg.det(matrix))) #can be expensive! QZ
             atoms = self.reset_molecular_centers(atoms, mol_list)
+
+        if dimer:
+            atoms = self.reset_positions_by_dimer(atoms, mol_list)
             #atoms.write('reset.xyz', format='extxyz')
 
         if dim is not None:
