@@ -1,0 +1,41 @@
+#smiles: CC(=O)OC1=CC=CC=C1C(=O)O
+units real
+atom_style full
+
+dimension 3
+boundary p p p  #p p m
+
+bond_style hybrid harmonic
+angle_style hybrid harmonic
+dihedral_style hybrid charmm
+# special_bonds amber # same as special_bonds lj 0.0 0.0 0.5000 coul 0.0 0.0 0.83333
+special_bonds amber lj 0.0 0.0 0.50000 coul 0.0 0.0 0.83333 angle yes dihedral no
+box tilt large
+
+read_data lmp.dat
+
+neighbor 2.0 multi
+neigh_modify every 2 delay 4 check yes
+#neigh_modify every 2 delay 10
+
+pair_style lj/cut/coul/long 9.0 9.0
+pair_modify mix arithmetic shift no tail yes
+kspace_style pppm 0.0005
+kspace_modify gewald 0.29202898720871845 mesh 32 32 32 order 6
+
+pair_coeff 1 1   0.1094000   3.3996695
+pair_coeff 2 2   0.0860000   3.3996695
+pair_coeff 3 3   0.2100000   2.9599219
+pair_coeff 4 4   0.1700000   3.0000123
+pair_coeff 5 5   0.0860000   3.3996695
+pair_coeff 6 6   0.2104000   3.0664734
+pair_coeff 7 7   0.0157000   2.6495328
+pair_coeff 8 8   0.0150000   2.5996425
+pair_coeff 9 9   0.0000000  10.0000000
+
+#pair_modify mix arithmetic
+thermo_style custom step temp vol press etotal pe ke epair ecoul elong evdwl ebond eangle edihed eimp emol etail #    cella cellb cellc cellalpha cellbeta cellgamma density pxx pyy pzz pxy pxy pyz
+thermo_modify lost ignore flush yes
+
+#run 0
+
