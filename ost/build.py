@@ -5,6 +5,7 @@ from ost.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
 from ost.lmp import LAMMPSStructure
 from pkg_resources import resource_filename
 from monty.serialization import loadfn
+import os
 
 bonds = loadfn(resource_filename("pyxtal", "database/bonds.json"))
 
@@ -365,7 +366,7 @@ class Builder():
     def check_matrix(self):
         pass
         
-    def set_slab(self, atoms, mol_list, matrix=None, hkl=None, replicate=1, dim=None,
+    def set_slab(self, atoms0, mol_list0, matrix=None, hkl=None, replicate=1, dim=None,
                 layers=None, vacuum=None, separation=10.0,  
                 orthogonality=False, reset=True, dimer=False):
         """
@@ -377,7 +378,8 @@ class Builder():
         then prepare the ase.atoms for lammps calculation
 
         Args:
-            atoms: ase.atoms object
+            atoms0: ase.atoms object
+            mol_list0: list of molecular ids
             matrix: a matrix representing structure rotation
             hkl: sequence of three int for Miller indices (h, k, l)
             dim: e.g. [100, 20, 20], length in xyz
@@ -393,19 +395,19 @@ class Builder():
 
         # derive the matrix from hkl indices
         if matrix is None:
-            matrix = self.matrix_from_hkl(hkl, atoms.cell, orthogonality)
+            matrix = self.matrix_from_hkl(hkl, atoms0.cell, orthogonality)
 
         if matrix.size != 9:
             raise ValueError("Cannot make 3*3 matrix from the input", matrix)
         
         if reset:
-            atoms = make_supercell(atoms, matrix)
+            atoms = make_supercell(atoms0, matrix)
             atoms = self.reset_cell_vectors(atoms)
-            atoms = self.reset_positions(atoms, mol_list*int(np.linalg.det(matrix))) #can be expensive! QZ
-            atoms = self.reset_molecular_centers(atoms, mol_list)
+            atoms = self.reset_positions(atoms, mol_list0*int(np.linalg.det(matrix))) #can be expensive! QZ
+            atoms = self.reset_molecular_centers(atoms, mol_list0)
 
         if dimer:
-            atoms = self.reset_positions_by_dimer(atoms, mol_list)
+            atoms = self.reset_positions_by_dimer(atoms, mol_list0)
             #atoms.write('reset.xyz', format='extxyz')
 
         if dim is not None:
@@ -414,7 +416,7 @@ class Builder():
             print("Replicate: ", replicate, len(atoms))
             
         atoms *= replicate
-        mol_list *= np.product(replicate)
+        mol_list = mol_list0 * np.product(replicate)
 
         # extract number of layers
         if layers is not None:
@@ -692,7 +694,9 @@ class Builder():
         # QZ: Rewrite for multicomponent systems
         N_per_mols = [len(self.molecules[i].atoms) for i in mol_list]
         pos = atoms.get_scaled_positions(wrap=False)
-        
+
+        #print('Debug', N_per_mols)
+
         for i, N_per_mol in enumerate(N_per_mols):
             if N_per_mol > 1:
                 visited_ids = []
@@ -700,6 +704,7 @@ class Builder():
                 end = start + N_per_mols[i]
 
                 lists = list(range(start, end))
+                #print("Finding molecules", lists)
                 for id in lists:
                     if id not in visited_ids:
                         id0 = id
@@ -775,11 +780,17 @@ class Builder():
             task: a dictionary specifying lammps parameters
         """
         from pkg_resources import resource_filename as rf
+        # possible modes: 
+        # - bulk (single/cycle)
+        # - slab (single/cycle/3pf bending)
 
-        _task = {'type': 'tensile',
+        _task = {'type': 'single',          # single/cycle/3pf
+                 'pbc': 'bulk',
+                 'bending': False,
                  'temperature': 300.0,      # K
                  'pressure': 1.0,           # atmospheres 
                  'timestep': 1.0,           # fs
+                 'timerelax': 100000,       # fs
                  'max_strain': 0.1,         # unitless
                  'rate': 1e+8,              # A/s
                  'indenter_height': 107,    # A
@@ -793,26 +804,38 @@ class Builder():
                  'direction': 'xz',         # shear strain
                  'pxatm': 0,                # atm
                  'pyatm': 0,                # atm
+                 'deform_steps': 50,
                 }
         _task.update(task)
+        elements = [a.name for m in self.molecules for a in m.atoms]
+        _task['ele_string'] = ' '.join(elements)
+
         if filename is None: filename = _task['type'] + '.in'
 
+        if _task['direction'] in ['xx', 'yy', 'zz']: _task['direction'] = _task['direction'][0]
+
         # Read the template information
-        template = (rf("ost", "templates/" + _task['type'] + '.in'))
-        with open(template, 'r') as f0:
-            lines = f0.readlines()
+        template = (rf("ost", "templates/" + _task['pbc'] + '-' + _task['type'] + '.in'))
+        if not os.path.exists(template):
+            raise RuntimeError('Cannot find the template', template)
+        else:
+            with open(template, 'r') as f0:
+                lines = f0.readlines()
 
         with open(filename, 'w') as f:
             f.write('include lmp.in\n')
             f.write('variable temperature equal {:12.3f}\n'.format(_task['temperature']))
-            f.write('variable pressure equal {:12.3f}\n'.format(_task['pressure']))
+            f.write('variable patm equal {:12.3f}\n'.format(_task['pressure']))
             f.write('variable dt equal {:12.3f}\n'.format(_task['timestep']))
-            if _task['type'] in ['tensile', 'shear']:
+            f.write('variable t_relax equal {:12.3f}\n'.format(_task['timerelax']))
+            f.write('variable deform_steps equal {:12.3f}\n'.format(_task['deform_steps']))
+            f.write('variable ele_string equal "{:s}"\n'.format(_task['ele_string']))
+            
+            if _task['type'] in ['single', 'cycle']:
                 f.write('variable strain_total equal {:12.3f}\n'.format(_task['max_strain']))
                 f.write('variable strainrate equal {:2e}\n'.format(_task['rate']))
-                if _task['type'] == 'shear':
-                    f.write('variable direction string {:s}\n'.format(_task['direction']))
-            else:
+                f.write('variable direction string {:s}\n'.format(_task['direction']))
+            else: # 3pf bending
                 f.write('variable ih equal {:.3f}\n'.format(_task['indenter_height']))
                 f.write('variable id equal {:.3f}\n'.format(_task['indenter_distance']))
                 f.write('variable vel equal {:2e}\n'.format(_task['indenter_rate']))
@@ -838,7 +861,38 @@ class Builder():
                 #if _task['indenter_distance'] > : #
                 #    pass
             f.writelines(lines)
-            
+    
+    def get_dim(self, direction):
+        # For tensile, the preferred direction should be no less than 80
+        # For shear, the preferred plane should be no less than 80*80
+        # Other directions should be no less than 20
+        if direction == 'xx':
+            return [80, 40, 40]
+        elif direction  == 'yy':
+            return [40, 80, 40]
+        elif direction  == 'zz':
+            return [40, 40, 80]
+        elif direction  == 'xy':
+            return [80, 80, 40]
+        elif direction  == 'xz':
+            return [80, 40, 80]
+        elif direction  == 'yz':
+            return [40, 80, 80]
+        else:
+            raise RuntimeError("direction is not supported")
+
+    def get_deform_type(self, direction):
+        # For tensile, the preferred direction should be no less than 80
+        # For shear, the preferred plane should be no less than 80*80
+        # Other directions should be no less than 20
+        if direction in ['xx', 'yy', 'zz']:
+            return 'tension'
+        elif direction == ['xy', 'yz', 'xz']:
+            return 'shear'
+        else:
+            raise RuntimeError("direction is not supported")
+
+
 if __name__ == "__main__":
 
     import os

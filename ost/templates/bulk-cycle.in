@@ -1,12 +1,13 @@
-include lmp.in
-variable temperature equal      300.000
-variable patm equal             1.000
-variable dt equal               1.000
-variable trelax equal           100000
-variable strain_total equal     0.300
-variable strainrate equal       2.000000e+08
-variable direction string       xy
-variable deform_steps equal     50
+#include lmp.in
+#variable temperature equal      300.000
+#variable patm equal             1.000
+#variable dt equal               1.000
+#variable trelax equal           100000
+#variable strain_total equal     0.300
+#variable strainrate equal       2.000000e+08
+#variable direction string       xy
+#variable deform_steps equal     50
+#variable ele_string string "N C O C C C C C C C N O H H H H H H H H"
 
 variable srate      equal ${strainrate}/1e15
 variable thermo     equal "abs(1e12 / v_strainrate)"
@@ -14,6 +15,7 @@ variable tdamp      equal 100*${dt}
 variable pdamp      equal 1000*${dt}
 variable pe         equal pe
 
+# for units real, pressure is in [atmospheres] = 0.101325 [MPa]
 variable sxx        equal "-pxx*0.101325"
 variable syy        equal "-pyy*0.101325"
 variable szz        equal "-pzz*0.101325"
@@ -27,19 +29,17 @@ variable    xcm     equal xcm(all,x)
 variable    ycm     equal xcm(all,y)
 variable    zcm     equal xcm(all,z)
 
-variable ele_string string "N C O C C C C C C C N O H H H H H H H H"
-
 print "strainrate ${strainrate}"
 print "srate ${srate}"
 print "steps ${steps}"
 print "dump_steps ${dump_steps}"
 
-
 thermo          1000
 neighbor        1.0    bin
 neigh_modify    every 1 delay 5 check yes
+thermo_style    custom step temp ke pe etotal lx ly lz pxx pyy pzz #pxy pxz pyz vol
+thermo_modify   lost warn norm yes
 timestep 	    ${dt}
-thermo_style    custom step temp ke pe etotal lx ly lz pxx pyy pzz pxy pxz pyz vol
 
 #======================== Energy minimization
 min_style       cg
@@ -64,7 +64,7 @@ run             ${trelax}
 unfix           1
 undump          1
 
-#======================== SHEAR DEFORMATION
+#========================DEFORMATION
 reset_timestep  0
 dump            1 all custom ${dump_steps} shear.*.dump element id mol type x y z
 dump_modify     1 element ${ele_string}
