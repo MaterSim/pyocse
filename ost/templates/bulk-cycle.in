@@ -71,7 +71,7 @@ dump_modify     1 element ${ele_string}
 compute         cc1 all chunk/atom molecule
 compute         myChunk all com/chunk cc1
 
-fix             1 all nph x ${patm} ${patm} ${pdamp} y ${patm} ${patm} ${pdamp} z ${patm} ${patm} ${pdamp} xz ${patm} ${patm} ${pdamp} yz ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
+fix             1 all nph x ${patm} ${patm} ${pdamp} y ${patm} ${patm} ${pdamp} z ${patm} ${patm} ${pdamp} xy ${patm} ${patm} ${pdamp} xz ${patm} ${patm} ${pdamp} yz ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
 fix             2 all ave/time 2 100 ${thermo} v_strain v_sxx v_syy v_szz v_sxz v_syz v_sxy v_pe file output.dat
 fix             6 all ave/time 2 100 ${thermo} c_myChunk[*] file center.dat mode vector
 

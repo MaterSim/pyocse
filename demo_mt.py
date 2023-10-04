@@ -26,6 +26,11 @@ if __name__ == "__main__":
                       default=1,
                       metavar="nodes")
 
+    parser.add_option("-l", "--lammps", dest="lammps",
+                      help="lammps command",
+                      metavar="lammps")
+
+
     # A pipeline to perform sceening of Organic crytals with possible Martensitic Transition
     # 1. extract crystal
     # 2. perform one cycle of tension-compress, shear deformation
@@ -44,13 +49,18 @@ if __name__ == "__main__":
     db = database(options.db)
     ncpu = options.per * options.nodes
     code = options.code
+    _lmpcmd = options.lammps.split('srun')[-1]
 
-    lmpcmd = "srun --mpi=pmix_v3 -n " + str(ncpu)  
-    lmpcmd += " /users/qzhu8/GitHub/lammps/build_cpu_intel/lmp -in cycle.in"
+    # in case the lmpcmd has -n 
+    if len(_lmpcmd.split('-n')) > 1:
+        tmps = _lmpcmd.split('-n')
+        _lmpcmd = tmps[0] + ' '.join(tmps[-1].split()[1:])
+
+    lmpcmd = "srun -n " + str(ncpu) + ' ' + _lmpcmd
     print(code, lmpcmd)
-    directions = ['xx', 'yy', 'zz', 'xy', 'xz', 'yz']
-    
+
     # Extract information
+    directions = ['xx', 'yy', 'zz', 'xy', 'xz', 'yz']
     xtal = db.get_pyxtal(code)
     smiles = [mol.smile for mol in xtal.molecules]
     bu = Builder(smiles=smiles, style=style)

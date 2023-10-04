@@ -120,7 +120,6 @@ class Builder():
         if T is not None:
             self.update_cell_parameters(T)
         
-        self.xtal.write('t1.xyz', format='extxyz')
         if dimer:
             self.xtal = self.reset_positions_by_dimer(self.xtal, self.xtal_mol_list)
 
@@ -812,9 +811,10 @@ class Builder():
         ele_string = ' '.join(elements)
         _task['ele_string'] = re.sub(pattern, '', ele_string)
 
-        if filename is None: filename = _task['type'] + '.in'
 
+        if filename is None: filename = _task['type'] + '.in'
         if _task['direction'] in ['xx', 'yy', 'zz']: _task['direction'] = _task['direction'][0]
+        keywords = _task['direction'] + ' ${patm} ${patm} ${pdamp}'
 
         # Read the template information
         template = (rf("ost", "templates/" + _task['pbc'] + '-' + _task['type'] + '.in'))
@@ -862,7 +862,12 @@ class Builder():
                 # update box to make sure that xlo is smaller than indenter depth
                 #if _task['indenter_distance'] > : #
                 #    pass
-            f.writelines(lines)
+            for line in lines:
+                if not line.startswith('#variable'):
+                    if line.find(keywords) > 0:
+                        line = line.replace(keywords, '')
+                    f.write(line)
+            #f.writelines(lines)
     
     def get_dim(self, direction):
         # For tensile, the preferred direction should be no less than 80
