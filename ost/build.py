@@ -5,7 +5,7 @@ from ost.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
 from ost.lmp import LAMMPSStructure
 from pkg_resources import resource_filename
 from monty.serialization import loadfn
-import os
+import os, re
 
 bonds = loadfn(resource_filename("pyxtal", "database/bonds.json"))
 
@@ -808,7 +808,9 @@ class Builder():
                 }
         _task.update(task)
         elements = [a.name for m in self.molecules for a in m.atoms]
-        _task['ele_string'] = ' '.join(elements)
+        pattern = r'[0-9]'
+        ele_string = ' '.join(elements)
+        _task['ele_string'] = re.sub(pattern, '', ele_string)
 
         if filename is None: filename = _task['type'] + '.in'
 
@@ -827,9 +829,9 @@ class Builder():
             f.write('variable temperature equal {:12.3f}\n'.format(_task['temperature']))
             f.write('variable patm equal {:12.3f}\n'.format(_task['pressure']))
             f.write('variable dt equal {:12.3f}\n'.format(_task['timestep']))
-            f.write('variable t_relax equal {:12.3f}\n'.format(_task['timerelax']))
+            f.write('variable trelax equal {:12.3f}\n'.format(_task['timerelax']))
             f.write('variable deform_steps equal {:12.3f}\n'.format(_task['deform_steps']))
-            f.write('variable ele_string equal "{:s}"\n'.format(_task['ele_string']))
+            f.write('variable ele_string string "{:s}"\n'.format(_task['ele_string']))
             
             if _task['type'] in ['single', 'cycle']:
                 f.write('variable strain_total equal {:12.3f}\n'.format(_task['max_strain']))
