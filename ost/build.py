@@ -894,6 +894,53 @@ class Builder():
         else:
             raise RuntimeError("direction is not supported")
 
+    def plot(self, direction):
+        import matplotlib.pyplot as plt
+        # Create a single figure with subplots for each column
+        fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(8, 6))
+
+        if direction == 'xx':
+            col = 2
+        elif direction  == 'yy':
+            col = 3
+        elif direction  == 'zz':
+            col = 4
+        elif direction == 'xz':
+            col = 5
+        elif direction == 'yz':
+            col = 6
+        elif direction == 'xy':
+            col = 7
+
+        name = 'Cycle-' + direction
+        fig.suptitle(name+' MD simulation')
+
+        # Load the data from the text file into a DataFrame
+        file_path = 'output.dat'
+        data = np.loadtxt(file_path)
+        middle = int(len(data)/2)
+
+        d = data[0, 1]
+        for i in range(middle, len(data)):
+            #print(i, d*(i-middle))
+            data[i, 1] -= 2*d*(i-middle+2)
+        print(data[:, 1])
+
+        # Plot the distribution of each column
+        labels = ['S_' + direction + ' (MPa)', 'Potential Energy (Kcal/mol)']
+        for i, column in enumerate([col, -1]):#, 5, 6, 8]):
+            row, col = i, 0
+            axs[row].plot(data[:middle, 1], data[:middle, column], label = 'Forward')
+            axs[row].plot(data[middle:, 1], data[middle:, column], label = 'Backward')
+            axs[row].grid(True)
+            axs[row].legend(loc=1)
+            axs[row].set_ylabel(labels[i])
+            axs[row].set_xlabel('Strain')
+        # Adjust the layout and spacing
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        # Save the figure as '1.png'
+        plt.savefig(name+'.png')
+
 
 if __name__ == "__main__":
 
