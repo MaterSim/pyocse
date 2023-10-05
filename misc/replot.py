@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 # Create a single figure with subplots for each column
-def make_plot(filepath, label=None):      
+def make_plot(filepath, label=None, num=600):      
     fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(8, 6))
     path = filepath[:-11]
     direction = path.split('/')[-1]
@@ -28,7 +28,7 @@ def make_plot(filepath, label=None):
     os.chdir(path)
     file_path = 'output.dat'
     data = np.loadtxt(file_path)
-    middle = int(len(data)/2)
+    middle = int(num/2)
 
     d = data[0, 1]
     for i in range(middle, len(data)): data[i, 1] -= 2*d*(i-middle+2)
@@ -41,7 +41,9 @@ def make_plot(filepath, label=None):
         else:
             colors = ['r', 'g']
         axs[row].plot(data[:middle, 1], data[:middle, column], color=colors[0], label = 'Load')
-        axs[row].plot(data[middle:, 1], data[middle:, column], color=colors[1], label = 'Unload')
+        if len(data) > middle:
+            axs[row].plot(data[middle:, 1], data[middle:, column], color=colors[1], label = 'Unload')
+        axs[row].set_xlim([0, 0.30])
         axs[row].grid(True)
         axs[row].legend(loc=1, fontsize=16)
         axs[row].set_ylabel(labels[i], fontsize=15)
@@ -49,7 +51,7 @@ def make_plot(filepath, label=None):
             axs[row].set_xlabel('Strain', fontsize=15)
         else:
             axs[row].set_xticks([])
-        if len(data) < 580:
+        if len(data) < num:
             axs[row].set_facecolor('grey')
     # Adjust the layout and spacing
     plt.tight_layout(rect=[0, 0, 1, 0.95])
