@@ -70,14 +70,25 @@ if __name__ == "__main__":
     compound_folder = 'MT-' + code + '-' + style
     if not os.path.exists(compound_folder): os.makedirs(compound_folder)
     os.chdir(compound_folder)
+
+    # Create the lammps file for the unit cell
+    bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix)
+    bu.lammps_slab.write_lammps()
     
     for direction in directions:
         print("direction", direction)
-        dim = bu.get_dim(direction)
         deform_folder = direction
         if not os.path.exists(deform_folder): os.makedirs(deform_folder)
     
         os.chdir(deform_folder)
+
+        # Get supercell
+        dim = bu.get_dim(direction)
+        print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
+        [a, b, c] = atoms.get_cell_lengths_and_angles()[:3]
+        replicate = [int(np.ceil(dim[i]/l)) for i, l in enumerate([a, b, c])]
+
+        # Create lammps master input
         task = {
                 'type': 'cycle',
                 'direction': direction,
@@ -86,16 +97,13 @@ if __name__ == "__main__":
                 'max_strain': 0.3,
                 'rate': 2e+8, 
                 'dump_steps': 50,
+                'replicate': replicate,
                 }
-    
-        bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix, dim=dim)
-        print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
         bu.set_task(task)
-    
-        # Prepare the lammps files and Execute the calculation
-        bu.lammps_slab.write_lammps()
+        os.system('cp ../lmp.in ./')
+        os.system('cp ../lmp.dat ./')
+
+        # Execute the calculation
         os.system(lmpcmd)
-        #bu.ase_slab.write('test.xyz', format='extxyz')
-        
         os.chdir('../')
     

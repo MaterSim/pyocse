@@ -804,6 +804,7 @@ class Builder():
                  'pxatm': 0,                # atm
                  'pyatm': 0,                # atm
                  'deform_steps': 50,
+                 'replicate': None,
                 }
         _task.update(task)
         elements = [a.name for m in self.molecules for a in m.atoms]
@@ -862,6 +863,12 @@ class Builder():
                 # update box to make sure that xlo is smaller than indenter depth
                 #if _task['indenter_distance'] > : #
                 #    pass
+
+            # add replicate
+            if _task['replicate'] is not None:
+                f.write('replicate', ' '.join(_task['replicate']))
+                f.write('\n')
+
             for line in lines:
                 if not line.startswith('#variable'):
                     if line.find(keywords) > 0:
