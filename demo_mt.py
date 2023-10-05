@@ -104,7 +104,7 @@ if __name__ == "__main__":
         os.system('cp ../lmp.dat ./')
 
         # Execute the calculation
-        #os.system(lmpcmd)
+        os.system(lmpcmd)
         try:
             bu.plot(direction)
         except:
