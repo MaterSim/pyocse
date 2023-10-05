@@ -813,7 +813,7 @@ class Builder():
 
 
         if filename is None: filename = _task['type'] + '.in'
-        if _task['direction'] in ['xx', 'yy', 'zz']: _task['direction'] = _task['direction'][0]
+        if _task['direction'] in ['xx', 'yy', 'zz']: _task['direction'] = ' ' + _task['direction'][0]
         keywords = _task['direction'] + ' ${patm} ${patm} ${pdamp}'
 
         # Read the template information
@@ -899,7 +899,7 @@ class Builder():
         else:
             raise RuntimeError("direction is not supported")
 
-    def plot(self, direction):
+    def plot(self, direction, label=None):
         import matplotlib.pyplot as plt
         # Create a single figure with subplots for each column
         fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(8, 6))
@@ -916,9 +916,10 @@ class Builder():
             col = 6
         elif direction == 'xy':
             col = 7
-
+        
         name = 'Cycle-' + direction
-        fig.suptitle(name+' MD simulation')
+        if label is not None: name = label + '-' + name
+        fig.suptitle(name)
 
         # Load the data from the text file into a DataFrame
         file_path = 'output.dat'
@@ -929,20 +930,28 @@ class Builder():
         for i in range(middle, len(data)):
             #print(i, d*(i-middle))
             data[i, 1] -= 2*d*(i-middle+2)
-        print(data[:, 1])
+        #print(data[:, 1])
 
         # Plot the distribution of each column
         labels = ['S_' + direction + ' (MPa)', 'Potential Energy (Kcal/mol)']
         for i, column in enumerate([col, -1]):#, 5, 6, 8]):
             row, col = i, 0
-            axs[row].plot(data[:middle, 1], data[:middle, column], label = 'Forward')
-            axs[row].plot(data[middle:, 1], data[middle:, column], label = 'Backward')
+            if row == 0:
+                colors = ['r', 'b']
+            else:
+                colors = ['r', 'g']
+            axs[row].plot(data[:middle, 1], data[:middle, column], color=colors[0], label = 'Forward')
+            axs[row].plot(data[middle:, 1], data[middle:, column], color=colors[1], label = 'Backward')
             axs[row].grid(True)
             axs[row].legend(loc=1)
             axs[row].set_ylabel(labels[i])
-            axs[row].set_xlabel('Strain')
+            if i == 1:
+                axs[row].set_xlabel('Strain')
+            else:
+                axs[row].set_xticks([])
         # Adjust the layout and spacing
         plt.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.subplots_adjust(hspace=0.01)
         # Save the figure as '1.png'
         plt.savefig(name+'.png')
 
