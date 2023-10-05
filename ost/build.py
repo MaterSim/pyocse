@@ -866,7 +866,9 @@ class Builder():
 
             # add replicate
             if _task['replicate'] is not None:
-                f.write('replicate', ' '.join(_task['replicate']))
+                rep = [str(x) for x in _task['replicate']]
+                f.write('replicate   ')
+                f.write(' '.join(rep))
                 f.write('\n')
 
             for line in lines:

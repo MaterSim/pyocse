@@ -85,7 +85,7 @@ if __name__ == "__main__":
         # Get supercell
         dim = bu.get_dim(direction)
         print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
-        [a, b, c] = atoms.get_cell_lengths_and_angles()[:3]
+        [a, b, c] = bu.ase_slab.get_cell_lengths_and_angles()[:3]
         replicate = [int(np.ceil(dim[i]/l)) for i, l in enumerate([a, b, c])]
 
         # Create lammps master input
@@ -104,6 +104,10 @@ if __name__ == "__main__":
         os.system('cp ../lmp.dat ./')
 
         # Execute the calculation
-        os.system(lmpcmd)
+        #os.system(lmpcmd)
+        try:
+            bu.plot(direction)
+        except:
+            print('Fail to make plot', code, direction)
         os.chdir('../')
     
