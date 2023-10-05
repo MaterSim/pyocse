@@ -106,7 +106,7 @@ if __name__ == "__main__":
         # Execute the calculation
         os.system(lmpcmd)
         try:
-            bu.plot(direction)
+            bu.plot(direction, code)
         except:
             print('Fail to make plot', code, direction)
         os.chdir('../')

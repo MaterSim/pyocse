@@ -8,6 +8,7 @@ $ ase db dataset/mech.db -c csd_code -L 40
 $ sbatch -J BIYRIM01 misc/myrun-anvil
 
 # To view the results
+$ python misc/replot.py
 $ python misc/figure.py
 
 Will generate a file called `total.png` on the root directory

@@ -928,7 +928,7 @@ class Builder():
         
         name = 'Cycle-' + direction
         if label is not None: name = label + '-' + name
-        fig.suptitle(name)
+        fig.suptitle(name, fontsize=16)
 
         # Load the data from the text file into a DataFrame
         file_path = 'output.dat'
