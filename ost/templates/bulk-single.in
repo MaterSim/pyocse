@@ -10,7 +10,7 @@
 #variable ele_string string "N C O C C C C C C C N O H H H H H H H H"
 
 variable srate      equal ${strainrate}/1e15
-variable thermo     equal "abs(1e12 / v_strainrate)"
+variable thermo     equal "ceil(abs(1e12 / v_strainrate))"
 variable tdamp      equal 100*${dt}
 variable pdamp      equal 1000*${dt}
 variable pe         equal pe
@@ -22,8 +22,8 @@ variable szz        equal "-pzz*0.101325"
 variable sxz        equal "-pxz*0.101325"
 variable syz        equal "-pyz*0.101325"
 variable sxy        equal "-pxy*0.101325"
-variable steps      equal abs(${strain_total}/${srate})
-variable dump_steps equal ${steps}/${deform_steps}
+variable steps      equal ceil(abs(${strain_total}/${srate}))
+variable dump_steps equal ceil(${steps}/${deform_steps})
 variable strain     equal "step*v_srate"
 variable    xcm     equal xcm(all,x)
 variable    ycm     equal xcm(all,y)
@@ -58,7 +58,7 @@ velocity        all create ${temperature} 1938072 mom yes rot no
 #fix             1 all npt temp ${temperature} ${temperature} ${tdamp} iso ${pressure} ${pressure} ${pdamp}
 fix             1 all nph tri ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
 
-dump            1 all custom 10000 equilibrium.*.dump element id mol type x y z
+dump            1 all custom 20000 equilibrium.*.dump element id mol type x y z
 dump_modify     1 element ${ele_string}
 run             ${trelax}
 unfix           1
