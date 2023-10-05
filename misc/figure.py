@@ -61,5 +61,6 @@ def combine_images_smart(image_filenames, output_filename):
 # Example usage:
 from glob import glob
 image_filenames = glob('MT-*-openff/*/*.png')
+image_filenames.sort()
 print(image_filenames)
 combine_images_smart(image_filenames, 'total.png')
