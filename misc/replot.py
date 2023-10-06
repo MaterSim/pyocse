@@ -10,20 +10,20 @@ def make_plot(filepath, label=None, num=600):
 
     print(path, direction)
 
-    fig.suptitle(name + '-' + code, fontsize=22, y=0.95)
     if direction == 'xx':
         col = 2
     elif direction  == 'yy':
         col = 3
     elif direction  == 'zz':
         col = 4
+    elif direction == 'xy':
+        col = 7
     elif direction == 'xz':
         col = 5
     elif direction == 'yz':
         col = 6
-    elif direction == 'xy':
-        col = 7
- 
+    name = code + '-' + str(col-1) + '-' + name
+    fig.suptitle(name, fontsize=22, y=0.95)
     # Load the data from the text file into a DataFrame
     os.chdir(path)
     file_path = 'output.dat'
@@ -59,10 +59,12 @@ def make_plot(filepath, label=None, num=600):
     # Save the figure as '1.png'
     name = 'Cycle-' + name
     plt.savefig(name+'.png')
+    plt.close()
 
 from glob import glob
 import os
 cwd = os.getcwd()
+os.system('rm MT-*-openff/*/*.png')
 files = glob('MT-*-openff/*/output.dat')
 files.sort()
 for f in files:
