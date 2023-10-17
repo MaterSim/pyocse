@@ -28,6 +28,15 @@ variable strain     equal "step*v_srate"
 variable    xcm     equal xcm(all,x)
 variable    ycm     equal xcm(all,y)
 variable    zcm     equal xcm(all,z)
+variable    xhi     equal xhi
+variable    yhi     equal yhi
+variable    zhi     equal zhi
+variable    xlo     equal xlo
+variable    ylo     equal ylo
+variable    zlo     equal zlo
+variable    xy      equal xy
+variable    xz      equal xz
+variable    yz      equal yz
 
 print "strainrate ${strainrate}"
 print "srate ${srate}"
@@ -43,10 +52,10 @@ timestep 	    ${dt}
 
 #======================== Energy minimization
 min_style       cg
-minimize        1.0e-25 1.0e-25 100 100# 000 1000000
-fix             BoxRelax all box/relax tri 0.0  vmax 0.01 nreset 10 fixedpoint ${xcm} ${ycm} ${zcm}
-minimize        1.0e-25 1.0e-25 100 100# 000 1000000
-unfix           BoxRelax
+minimize        1.0e-25 1.0e-25 100 100000 
+#fix             BoxRelax all box/relax tri 0.0  vmax 0.01 nreset 10 fixedpoint ${xcm} ${ycm} ${zcm}
+#minimize        1.0e-25 1.0e-25 100 100# 000 1000000
+#unfix           BoxRelax
 dump            1 all custom 10000 0.dump element id mol type x y z
 undump          1
 
@@ -74,7 +83,7 @@ compute         myChunk all com/chunk cc1
 fix             1 all nph x ${patm} ${patm} ${pdamp} y ${patm} ${patm} ${pdamp} z ${patm} ${patm} ${pdamp} xy ${patm} ${patm} ${pdamp} xz ${patm} ${patm} ${pdamp} yz ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
 fix             2 all ave/time 2 100 ${thermo} v_strain v_sxx v_syy v_szz v_sxz v_syz v_sxy v_pe file output.dat
 fix             6 all ave/time 2 100 ${thermo} c_myChunk[*] file center.dat mode vector
-dump            2 all custom ${thermo} box_parameters.dat id type x y z lx ly lz
+fix             7 all print ${thermo} "${xhi} ${xlo} ${yhi} ${ylo} ${zhi} ${zlo} ${xy} ${xz} ${yz}" screen no file box_parameters.dat 
 
 
 #======================== load
@@ -87,10 +96,10 @@ fix             4 all deform 1 ${direction} erate -${srate} units box remap x
 run             ${steps}
 unfix           4
 
+undump          7  # box_parameters.dat
 unfix           6  # center.dat 
 unfix           2  # output.dat
 unfix           1
-undump          2  # box_parameters.dat
 #======================NPT equilibration
 fix             5 all nph tri ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
 run             ${trelax} 
