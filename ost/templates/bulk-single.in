@@ -74,6 +74,7 @@ compute         myChunk all com/chunk cc1
 fix             1 all nph x ${patm} ${patm} ${pdamp} y ${patm} ${patm} ${pdamp} z ${patm} ${patm} ${pdamp} xz ${patm} ${patm} ${pdamp} yz ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
 fix             2 all ave/time 2 100 ${thermo} v_strain v_sxx v_syy v_szz v_sxz v_syz v_sxy v_pe file output.dat
 fix             6 all ave/time 2 100 ${thermo} c_myChunk[*] file center.dat mode vector
+dump            2 all custom ${thermo} box_parameters.dat id type x y z lx ly lz
 
 #======================== load
 fix             3 all deform 1 ${direction} erate ${srate} units box remap x
@@ -88,6 +89,7 @@ unfix           3
 unfix           6  # center.dat 
 unfix           2  # output.dat
 unfix           1
+undump          2  # box_parameters.dat
 #======================NPT equilibration
 fix             5 all nph tri ${patm} ${patm} ${pdamp} fixedpoint ${xcm} ${ycm} ${zcm}
 run             ${trelax} 
