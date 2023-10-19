@@ -95,7 +95,7 @@ unfix           3
 #run             ${steps}
 #unfix           4
 
-undump          7  # box_parameters.dat
+unfix           7  # box_parameters.dat
 unfix           6  # center.dat 
 unfix           2  # output.dat
 unfix           1
