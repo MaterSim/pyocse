@@ -537,9 +537,12 @@ class Builder():
         """
         Quickly dump the molecular centers in lammps format
         """
-        
-        f_border_ids = [j for sub in border_ids for j in sub]
+        if border_ids is not None:
+            f_border_ids = [j for sub in border_ids for j in sub]
+        else:
+            f_border_ids = []
         centers = self.get_molecular_centers(atoms, mol_list)
+        centers = np.dot(centers, atoms.cell.array)
         with open(filename, 'w') as of:
             of.write("ITEM: TIMESTEP\n")
             of.write("0\n")
@@ -747,6 +750,59 @@ class Builder():
         #print(atoms.get_scaled_positions()[:,2].min())
         return atoms
 
+    def get_molecular_bord_ids(self, atoms, mol_list, width=0.01, axis=0):
+        """
+        find the groups for border and fixed molecules:
+    
+        Args:
+            width:
+            axis: 0 or 1
+        """
+        
+        border_ids = []
+
+        centers = self.get_molecular_centers(atoms, mol_list)
+        # select molecules by x-axis
+        ref = centers[:, axis]
+        x_hi, x_lo = ref.max(), ref.min()
+        #print(x_lo-width, x_lo+width, x_hi-width, x_hi+width)
+        border_ids.append(np.where( (ref > (x_lo - width)) & (ref <(x_lo + width)) )[0] + 1)
+        border_ids.append(np.where( (ref > (x_hi - width)) & (ref <(x_hi + width)) )[0] + 1)
+
+        return border_ids
+
+
+    def get_molecular_fix_ids(self, atoms, mol_list, width=0.01, shift=0.2, axis=0):
+        """
+        find the groups for border and fixed molecules:
+    
+        Args:
+            width:
+            axis: 0 or 1
+        """
+        
+        border_ids = []
+        fix_ids = []
+
+        centers = self.get_molecular_centers(atoms, mol_list)
+        # select molecules by x-axis
+        ref = centers[:, axis]
+        x_hi, x_lo = ref.max() - shift, ref.min() + shift
+        #print(x_lo-width, x_lo+width, x_hi-width, x_hi+width)
+        border_ids.append(np.where( (ref > (x_lo - width)) & (ref <(x_lo + width)) )[0] + 1)
+        border_ids.append(np.where( (ref > (x_hi - width)) & (ref <(x_hi + width)) )[0] + 1)
+        #print(border_ids); import sys; sys.exit()
+
+        # select molecules for the lowest z
+        for border_id in border_ids:
+            zs = centers[border_id-1][:, 2]
+            zs -= zs.min()
+            for i in range(len(zs)):
+                if zs[i] < self.tol_layer/atoms.cell.array[2, 2]:
+                    fix_ids.append(border_id[i]) # + 1)
+ 
+        return fix_ids
+
     def get_molecular_ids(self, atoms, mol_list, width=5.0, axis=0):
         """
         find the groups for border and fixed molecules:
@@ -850,15 +906,17 @@ class Builder():
                 if _task['type'] == '3pf_free.in':
                     f.write('variable ib equal {:.3f}\n'.format(_task['indenters_basis']))
 
-                f.write('\ngroup bord molecule ')
-                for b in _task['border_mols']: 
-                    for _b in b:
-                        f.write('{:d} '.format(_b))
-
-                f.write('\ngroup fix-bord molecule ')
-                for b in _task['fix_mols']: 
-                    f.write('{:d} '.format(b))
-                f.write('\n')
+                # Output border molecules
+                if _task['border_mols'] is not None:
+                    f.write('\ngroup bord molecule ')
+                    for b in _task['border_mols']: 
+                        for _b in b:
+                            f.write('{:d} '.format(_b))
+                if _task['fix_mols'] is not None:
+                    f.write('\ngroup fix-bord molecule ')
+                    for b in _task['fix_mols']: 
+                        f.write('{:d} '.format(b))
+                    f.write('\n')
             
                 # update box to make sure that xlo is smaller than indenter depth
                 #if _task['indenter_distance'] > : #

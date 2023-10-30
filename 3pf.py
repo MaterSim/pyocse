@@ -5,16 +5,17 @@ import os
 
 # Set the crystal model
 data = [
-        ('BIYRIM01', [[0,0,1], [0,-1,0], [1,0,0]]), # Elastic, 90.124
+        #('BIYRIM01', [[0,0,1], [0,-1,0], [1,0,0]]), # Elastic, 90.124
         #('DAHLOQ', [[0,0,1], [0,-1,0], [1,0,0]]), # Brittle
-        #('DAHMUX', [[0,0,1], [0,-1,0], [1,0,0]]), # Plastic, 93.99, ac
+        ('DAHMUX', [[1,0,0], [0,1,0], [0,0,1]]), # Plastic, 93.99, ac
         #('YEWYAD', [[0,0,1], [1,0,0], [0,1,0]]), # Brittle, 98.902, ab
        ]
 
 #style = 'gaff' #'openff'
 style = 'openff'
 db = database('dataset/mech.db')
-dim = [300, 60, 60]
+dim = [500, 20, 40]
+#dim = [100, 20, 60]
 
 for d in data:
     (code, matrix) = d
@@ -25,14 +26,14 @@ for d in data:
     bu = Builder(smiles=smiles, style=style)
 
     # Get the relaxed cell paramters?
-    bu.set_xtal(xtal, para_min=10.0)
+    bu.set_xtal(xtal)#, para_min=10.0)
     
     # Apply the orientation
     print('Unitcell:   ', bu.xtal.get_cell_lengths_and_angles())
     print('Matrix:     ', matrix)
 
     # Directory
-    folder = '3pf-'+code+'-'+style
+    folder = '3pf2-'+code+'-'+style
     if not os.path.exists(folder): os.makedirs(folder)
     cwd = os.getcwd()
     os.chdir(folder)
@@ -49,6 +50,7 @@ for d in data:
             'inderter_t_hold': 300.0,  # ps, timesteps
             'pxatm': 0,                # atm
             'pyatm': 0,                # atm
+            'pbc': 'slab',
            }
 
     bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix, dim=dim, 
@@ -56,7 +58,8 @@ for d in data:
                 separation = task['indenter_radius'] + task['indenter_buffer'], 
                 orthogonality=True)
     print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
-    bord_ids, fix_ids = bu.get_molecular_ids(bu.ase_slab, bu.ase_slab_mol_list, width=5.0, axis=0)
+    bord_ids = bu.get_molecular_bord_ids(bu.ase_slab, bu.ase_slab_mol_list, axis=0)
+    fix_ids = bu.get_molecular_fix_ids(bu.ase_slab, bu.ase_slab_mol_list, axis=0)
     z_max = bu.ase_slab.get_positions()[:,2].max()
     z_min = bu.ase_slab.get_positions()[:,2].min()
     print('border molecules', bord_ids)
