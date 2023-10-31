@@ -788,7 +788,9 @@ class Builder():
         # select molecules by x-axis
         ref = centers[:, axis]
         x_hi, x_lo = ref.max() - shift, ref.min() + shift
-        #print(x_lo-width, x_lo+width, x_hi-width, x_hi+width)
+        # make sure the x_hi/x_lo can be found 
+        x_hi = ref[np.abs(ref - x_hi).argsort()[0]]
+        x_lo = ref[np.abs(ref - x_lo).argsort()[0]]
         border_ids.append(np.where( (ref > (x_lo - width)) & (ref <(x_lo + width)) )[0] + 1)
         border_ids.append(np.where( (ref > (x_hi - width)) & (ref <(x_hi + width)) )[0] + 1)
         #print(border_ids); import sys; sys.exit()
@@ -840,8 +842,8 @@ class Builder():
         # - slab (single/cycle/3pf bending)
 
         _task = {'type': 'single',          # single/cycle/3pf
+                 'mode': 'uniaxial',
                  'pbc': 'bulk',
-                 'bending': False,
                  'temperature': 300.0,      # K
                  'pressure': 1.0,           # atmospheres 
                  'timestep': 1.0,           # fs
@@ -868,13 +870,26 @@ class Builder():
         ele_string = ' '.join(elements)
         _task['ele_string'] = re.sub(pattern, '', ele_string)
 
+        if _task['mode'] == 'bend': 
+            _task['pbc'] = 'slab'
 
-        if filename is None: filename = _task['type'] + '.in'
-        if _task['direction'] in ['xx', 'yy', 'zz']: _task['direction'] = ' ' + _task['direction'][0]
-        keywords = _task['direction'] + ' ${patm} ${patm} ${pdamp}'
+        if filename is None: 
+            if _task['mode'] == 'bend':
+                filename = _task['pbc'] + '-bend-' + _task['type'] + '.in'
+            else:
+                filename = _task['pbc'] + '-' + _task['type'] + '.in'
+
+        if _task['direction'] in ['xx', 'yy', 'zz']: 
+            _task['direction'] = ' ' + _task['direction'][0]
+
+        if _task['mode'] == 'uniaxial':
+            keywords = _task['direction'] + ' ${patm} ${patm} ${pdamp}'
+        else:
+            keywords = None
+
 
         # Read the template information
-        template = (rf("ost", "templates/" + _task['pbc'] + '-' + _task['type'] + '.in'))
+        template = (rf("ost", "templates/" + filename))
         if not os.path.exists(template):
             raise RuntimeError('Cannot find the template', template)
         else:
@@ -890,7 +905,7 @@ class Builder():
             f.write('variable deform_steps equal {:12.3f}\n'.format(_task['deform_steps']))
             f.write('variable ele_string string "{:s}"\n'.format(_task['ele_string']))
             
-            if _task['type'] in ['single', 'cycle']:
+            if _task['mode'] == 'uniaxial':
                 f.write('variable strain_total equal {:12.3f}\n'.format(_task['max_strain']))
                 f.write('variable strainrate equal {:2e}\n'.format(_task['rate']))
                 f.write('variable direction string {:s}\n'.format(_task['direction']))
@@ -900,11 +915,10 @@ class Builder():
                 f.write('variable vel equal {:2e}\n'.format(_task['indenter_rate']))
                 f.write('variable R equal {:.3f}\n'.format(_task['indenter_radius']))
                 f.write('variable K equal {:.3f}\n'.format(_task['indenter_k']))
-                f.write('variable t_hold equal {:d}\n'.format(int(_task['indenter_t_hold']/_task['timestep'])))
                 f.write('variable pxatm equal {:.2f}\n'.format(_task['pxatm']))
                 f.write('variable pyatm equal {:.2f}\n'.format(_task['pyatm']))
-                if _task['type'] == '3pf_free.in':
-                    f.write('variable ib equal {:.3f}\n'.format(_task['indenters_basis']))
+                #if _task['type'] == '3pf_free.in':
+                #    f.write('variable ib equal {:.3f}\n'.format(_task['indenters_basis']))
 
                 # Output border molecules
                 if _task['border_mols'] is not None:
@@ -931,7 +945,7 @@ class Builder():
 
             for line in lines:
                 if not line.startswith('#variable'):
-                    if line.find(keywords) > 0:
+                    if keywords is not None and line.find(keywords) > 0:
                         line = line.replace(keywords, '')
                     f.write(line)
             #f.writelines(lines)
@@ -1033,68 +1047,51 @@ if __name__ == "__main__":
     bu = Builder(toml_files=[toml_file])
     bu.set_xtal(cif=cif)
     
+    #=== Apply the orientation
+
+    #=== Prepare lammps inputs
+    # Example 1: tensile, assuming z direction
+    task1 = {
+             'mode': 'uniaxial',
+             'direction': 'xx',
+             'max_strain': 0.1,
+             'rate': 1e+8, 
+           }
+
+    # Example 2: shear
+    task2 = {
+             'mode': 'uniaxial',
+             'direction': 'xz',
+             'max_strain': 0.1,
+             'rate': 1e+8, 
+            }
+
+    # Example 3: bending
+    task3 = {
+             'mode': 'bend',
+             'indenter_rate': 1e-3,     # A/fs (100 m/s)
+             'border_mols': bord_ids,   # for thermostat
+             'fix_mols': fix_ids,       # for freezing
+             'z_max': z_max, 
+            }
+
+    tasks = [task1, task2, task3]
     #=== Directory
     folder = "test"
     if not os.path.exists(folder): os.makedirs(folder)
     cwd = os.getcwd()
     os.chdir(folder)
 
-    #=== Apply the orientation
-    bu.set_slab(bu.xtal, bu.xtal_mol_list, hkl=(0,1,0), replicate=[5, 10, 8], layers=10, vacuum=20, orthogonality=True)
-    bord_ids, fix_ids = bu.get_molecular_ids(bu.ase_slab, bu.ase_slab_mol_list, width=5.0, axis=1)
-    z_max = bu.ase_slab.get_positions()[:,2].max()
-    z_min = bu.ase_slab.get_positions()[:,2].min()
-    print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
+    for task in tasks:
+        bu.set_slab(bu.xtal, bu.xtal_mol_list, hkl=(0,1,0), replicate=[5, 10, 8], layers=10, vacuum=20, orthogonality=True)
+        bord_ids = bu.get_molecular_bord_ids(bu.ase_slab, bu.ase_slab_mol_list)
+        fix_ids = bu.get_molecular_fix_ids(bu.ase_slab, bu.ase_slab_mol_list)
+        zs = bu.ase_slab.get_positions()[:,2]
+        z_max, z_min = zs.max(), zs.min()
+        print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
 
-    #=== Prepare lammps inputs
+        bu.set_task(task)
+        if task['mode'] in ['bend', 'bend0']:
+                bu.lammps_slab.write_lammps(orthogonality=True)
+                bu.dump_slab_centers(bu.ase_slab, bu.ase_slab_mol_list, bord_ids, fix_ids)
 
-    # Example 1: tensile, assuming z direction
-    task1 = {'type': 'tensile',
-             'temperature': 300,
-             'pressure': 1.0,
-             'max_strain': 0.1,
-             'rate': 1e+8, 
-           }
-
-    # Example 2: shear
-    task2 = {'type': 'shear',
-             'temperature': 300,
-             'pressure': 1.0,
-             'max_strain': 0.1,
-             'rate': 1e+8, 
-            }
-
-    # Example 3: bending
-    task3 = {'type': '3pf',
-             'temperature': 300.0,      # K
-             'pressure': 1.0,           # atmospheres 
-             'indenter_rate': 1e-3,     # A/fs (100 m/s)
-             'indenter_radius': 30.0,   # A
-             'indenter_k': 10.0,        # eV/^3
-             'inderter_distance': 100.0,  # A
-             'inderter_t_hold': 300.0,  # ps
-             'border_mols': bord_ids,   # List of [a, b] 
-             'fix_mols': fix_ids,       # Number of molecules per column 
-            }
-    task3['indenter_height'] = z_max + task3['indenter_radius']
-
-    # Example 4: bending_free
-    task4 = {'type': '3pf_free',
-             'temperature': 300.0,      # K
-             'pressure': 1.0,           # atmospheres 
-             'indenter_rate': 1e-3,     # A/fs (100 m/s)
-             'indenter_radius': 30.0,   # A
-             'indenter_k': 10.0,        # eV/^3
-             'inderted_distance': 100.0,  # A
-             'inderter_t_hold': 300.0,  # ps
-	    }
-    task4['indenter_height'] = z_max + task4['indenter_radius']
-    task4['indenters_basis'] = z_min - task4['indenter_radius']
-
-    bu.set_task(task3)
-    bu.lammps_slab.write_lammps(orthogonality=True)
-    bu.dump_slab_centers(bu.ase_slab, bu.ase_slab_mol_list, bord_ids, fix_ids)
-    #bu.ase_slab.write('test.cif', format='cif')
-
-    #calc = LAMMPSCalculator(struc)
-    #print(calc.get_energy())

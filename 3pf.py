@@ -14,8 +14,8 @@ data = [
 #style = 'gaff' #'openff'
 style = 'openff'
 db = database('dataset/mech.db')
-dim = [500, 20, 40]
-#dim = [100, 20, 60]
+dim = [250, 20, 40]
+#dim = [100, 20, 20]
 
 for d in data:
     (code, matrix) = d
@@ -33,24 +33,23 @@ for d in data:
     print('Matrix:     ', matrix)
 
     # Directory
-    folder = '3pf2-'+code+'-'+style
+    folder = '3pf-TT'+code+'-'+style
     if not os.path.exists(folder): os.makedirs(folder)
     cwd = os.getcwd()
     os.chdir(folder)
 
     # 3pf bending
-    task = {'type': '3pf',
-            'temperature': 300.0,      # K
-            'pressure': 1.0,           # atmospheres 
-            'indenter_rate': 1e-4,     # A/fs (10 m/s)
-            'indenter_radius': 30.0,   # A
-            'indenter_distance': 100.0,# A
-            'indenter_buffer': 10.0,   # A
+    task = {'mode': 'bend',              # uni_xx_bulk, 3pf_xz_slab0
+            'pbc_x': False,
+            'type': 'single',           #
+            'indenter_distance': 100.0, # A
+            'inderter_t_hold': 300.0,   # ps, timesteps
+            'indenter_rate': 1e-4,      # A/fs (10 m/s)
+            'dump_steps': 50,           # 
+            'indenter_radius': 30.0,   # Ang
+            'indenter_buffer': 10.0,   # Ang
             'indenter_k': 1.0,         # eV/^3
-            'inderter_t_hold': 300.0,  # ps, timesteps
-            'pxatm': 0,                # atm
-            'pyatm': 0,                # atm
-            'pbc': 'slab',
+            'timerelax': 1000,       # fs
            }
 
     bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix, dim=dim, 
@@ -58,20 +57,26 @@ for d in data:
                 separation = task['indenter_radius'] + task['indenter_buffer'], 
                 orthogonality=True)
     print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
+
+    # Get the molecular ids
     bord_ids = bu.get_molecular_bord_ids(bu.ase_slab, bu.ase_slab_mol_list, axis=0)
     fix_ids = bu.get_molecular_fix_ids(bu.ase_slab, bu.ase_slab_mol_list, axis=0)
-    z_max = bu.ase_slab.get_positions()[:,2].max()
-    z_min = bu.ase_slab.get_positions()[:,2].min()
     print('border molecules', bord_ids)
     print('fix molecules', fix_ids)
 
+    zs = bu.ase_slab.get_positions()[:,2]
+    z_max, z_min = zs.max(), zs.min()
     task['indenter_height'] = z_max + task['indenter_radius']
     task['border_mols'] = bord_ids   # List of [a, b] 
     task['fix_mols'] = fix_ids       # Number of molecules per column 
-
     bu.set_task(task)
     
-    bu.lammps_slab.write_lammps(orthogonality=True)
+    # update x_lo/x_hi
+    if not task['pbc_x']:
+        padding = [100, 0, 0]
+    else:
+        padding = [0, 0, 0]
+    bu.lammps_slab.write_lammps(orthogonality=True, padding=padding)
     bu.dump_slab_centers(bu.ase_slab, bu.ase_slab_mol_list, bord_ids, fix_ids)
-    bu.ase_slab.write('test.xyz', format='extxyz')
+    #bu.ase_slab.write('test.xyz', format='extxyz')
     os.chdir(cwd)
