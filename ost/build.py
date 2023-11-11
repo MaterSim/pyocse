@@ -402,7 +402,7 @@ class Builder():
         if reset:
             atoms = make_supercell(atoms0, matrix)
             atoms = self.reset_cell_vectors(atoms)
-            atoms = self.reset_positions(atoms, mol_list0*int(np.linalg.det(matrix))) #can be expensive! QZ
+            atoms = self.reset_positions(atoms, mol_list0*int(round(np.linalg.det(matrix)))) #can be expensive! QZ
             atoms = self.reset_molecular_centers(atoms, mol_list0)
 
         if dimer:
@@ -427,7 +427,7 @@ class Builder():
             atoms.set_pbc([1, 1, 0])
             atoms.center(vacuum, axis=2)
             # move atoms upward
-            atoms.translate([0, 0, vacuum-separation])
+            #atoms.translate([0, 0, vacuum-separation])
         
         self.ase_slab = atoms
         self.ase_slab_mol_list = mol_list
