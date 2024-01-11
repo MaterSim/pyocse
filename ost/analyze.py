@@ -31,9 +31,9 @@ def display_molecules(molecules, labels=None, size=(400,300)):
     view.setStyle({'stick':{'colorscheme':'greenCarbon'}})
     for key in labels.keys():
         text, pos = key, labels[key]
-        view.addLabel(text, {"position": {"x": pos[0], "y": pos[1], "z": pos[2]}, 
+        view.addLabel(text, {"position": {"x": pos[0], "y": pos[1], "z": pos[2]},
                              "fontColor":"black",
-                             "backgroundColor": "white", 
+                             "backgroundColor": "white",
                              "fontsize": 12,
                              "backgroundOpacity": "0.1",
                             })
@@ -72,7 +72,7 @@ class lmp_mol:
         self.dicts, smile = self.parse_dat()
         if smile is not None: self.smile = smile #; import sys; sys.exit()
         self.p_mol = pyxtal_molecule(self.smile+'.smi')
-        
+
         #parse dump
         self.struc = self.parse_dump()
         self.mol_ids = list(set(self.struc.arrays['mol_id']))
@@ -152,14 +152,14 @@ class lmp_mol:
 
             for i, l in enumerate(lines):
                 if l.find('atom types') > -1:
-                    # 38 atom types 
+                    # 38 atom types
                     N_types = int(l.split()[0])
                 elif l.find('Mass') > -1:
                     for linenumber in range(i+2, i+2+N_types):
-                        #1  12.0107800 #C1 
+                        #1  12.0107800 #C1
                         #1  12.0107800 #U00c3
                         tmp = lines[linenumber].split()
-                        if tmp[-1].startswith('#U00'): 
+                        if tmp[-1].startswith('#U00'):
                             tmp[-1] = tmp[-1][4:]
                         else:
                             tmp[-1] = tmp[-1][1:]
@@ -167,12 +167,12 @@ class lmp_mol:
                         #    symbol = tmp[-1][:2]
                         #else:
                         symbol = tmp[-1][0]
-                        symbol = symbol.replace(symbol[0], symbol[0].upper(), 1) 
+                        symbol = symbol.replace(symbol[0], symbol[0].upper(), 1)
                         index = int(tmp[0])
                         #print(index, symbol)
                         dicts[index] = atomic_numbers[symbol]
                     break
-    
+
         return dicts, smile
 
     def get_molecule(self, mol_id=1):
@@ -192,9 +192,9 @@ class lmp_mol:
 
         #resort it by type_id
         seq = np.argsort(types)
-        struc = Atoms(numbers=numbers[seq], 
-                      scaled_positions=scaled_pos[seq], 
-                      cell=self.cell, 
+        struc = Atoms(numbers=numbers[seq],
+                      scaled_positions=scaled_pos[seq],
+                      cell=self.cell,
                       pbc=[1, 1, 0])
         return struc
 
@@ -205,7 +205,7 @@ class lmp_mol:
         Args:
             mol_id: list of int
         """
-        N_per_mol = self.n_atom_per_mol 
+        N_per_mol = self.n_atom_per_mol
         all_numbers = np.zeros(N_per_mol*len(mol_ids), dtype=int)
         all_scaled_positions = np.zeros([N_per_mol*len(mol_ids), 3])
         for i, mol_id in enumerate(mol_ids):
@@ -222,9 +222,9 @@ class lmp_mol:
             #print(types, start, end)
             all_scaled_positions[start:end, :] += scaled_pos[seq]
             all_numbers[start:end] += numbers[seq]
-        struc = Atoms(numbers=all_numbers, 
-                      scaled_positions=all_scaled_positions, 
-                      cell=self.cell, 
+        struc = Atoms(numbers=all_numbers,
+                      scaled_positions=all_scaled_positions,
+                      cell=self.cell,
                       pbc=[1, 1, 0])
         return struc
 
@@ -255,7 +255,7 @@ class lmp_mol:
                 if not in_list(G, orders2, numbers):
                     orders2.append(G)
                     break
-            
+
             rmsds = []
             _trans = []
             for order1 in orders1:
@@ -286,7 +286,7 @@ class lmp_mol:
             ref: reference molecular positions in np.array
 
         Returns:
-            angles: 
+            angles:
             rmsd:
         """
         if ref is None:
@@ -346,7 +346,7 @@ class lmp_mol:
             rotation_file = self.rotation_file + '-multi'
         else:
             multi = False
-            rotation_file = self.rotation_file 
+            rotation_file = self.rotation_file
 
         for i, id in enumerate(mol_ids):
             if multi:
@@ -381,7 +381,7 @@ if __name__ == '__main__':
     from glob import glob
     from multiprocessing import Pool
     from functools import partial
-    
+
     parser = OptionParser()
     parser.add_option("-m", "--mol", dest="mol",
                       help="molecule file",
@@ -392,13 +392,13 @@ if __name__ == '__main__':
     parser.add_option("-n", "--ncpu", dest="ncpu", type=int,
                      help="ncpu",
                      metavar="ncpu")
-    
+
     (options, args) = parser.parse_args()
     dat_file = options.mol
     pattern = options.pattern
     dump_files = glob(pattern+'*')
     dump_files = [d for d in dump_files if d.find('rot')==-1]
-    
+
     numbers = [int(d.split('.')[-1]) for d in dump_files]
     seq = np.argsort(numbers)
     dump_files = [dump_files[s] for s in seq]
@@ -407,7 +407,7 @@ if __name__ == '__main__':
     xtal0 = lmp_mol(dump_files[0], dat_file)
     xyzs = xtal0.get_molecules(xtal0.mol_ids).positions
     print(xyzs.shape)
-    
+
     #xtal0.compute_rotations(ref=xyzs)
     pool = Pool(options.ncpu)
     func = partial(process, dat_file, xyzs)

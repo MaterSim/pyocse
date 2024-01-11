@@ -104,7 +104,7 @@ def convert_openff(
         "mol_spin_multiplicity": spin_multiplicity,
         "data": {"omm_info": struc.ffdic},
     }
-    #for k in struc.ffdic['omm_forcefield'][0]['ForceField'].keys(): 
+    #for k in struc.ffdic['omm_forcefield'][0]['ForceField'].keys():
     #    print(struc.ffdic['omm_forcefield'][0]['ForceField'][k])
     if savetoml:
         dump_toml(dic, savetoml)

@@ -11,8 +11,8 @@ bonds = loadfn(resource_filename("pyxtal", "database/bonds.json"))
 
 class Builder():
     """
-    The parser is used to generate both structure and force field that 
-    are needed for atomistic simulations. Essentially, it supports the 
+    The parser is used to generate both structure and force field that
+    are needed for atomistic simulations. Essentially, it supports the
     following functions:
         - 1. read the `toml` file for the gas molecule
         - 2. prepare the structure xyz and force fields for the given molecule
@@ -43,7 +43,6 @@ class Builder():
                     self.dics.append(convert_gaff(smiles=smi, molname=str(i)))#, cleanup=False))
                 else: # openff, needs to debug
                     self.dics.append(convert_openff(smiles=smi, molname=str(i)))
-                    
             self.smiles = ".".join(smiles)
 
         self.molecules = self.molecules_from_dicts()
@@ -59,8 +58,8 @@ class Builder():
             ffdic = d["data"].pop("omm_info")
             #print(ffdic["omm_forcefield"])
             #for a in ffdic["mol2"]: print(a)
-            molecule = ommffs_to_paramedstruc(ffdic["omm_forcefield"], 
-                                              ffdic["mol2"], 
+            molecule = ommffs_to_paramedstruc(ffdic["omm_forcefield"],
+                                              ffdic["mol2"],
                                               cls=cls)
             molecule.ffdic = ffdic
             molecule.change_residue_name(residuename)
@@ -113,13 +112,13 @@ class Builder():
             replicate = [int(np.ceil(para_min/a)), int(np.ceil(para_min/b)), int(np.ceil(para_min/c))]
             self.xtal *= replicate
             self.xtal_mol_list *= np.product(replicate)
-        #print(self.xtal.get_chemical_symbols())   
+        #print(self.xtal.get_chemical_symbols())
         #self.xtal.write('super.xyz', format='extxyz')
         # Perform equilibriation
         self.T = T
         if T is not None:
             self.update_cell_parameters(T)
-        
+
         if dimer:
             self.xtal = self.reset_positions_by_dimer(self.xtal, self.xtal_mol_list)
 
@@ -128,7 +127,7 @@ class Builder():
         Reset atomic positions so that the paired molecules form the dimer
         E.g., 4 aspirin molecules in the unit cell will be rearranged so
         that both the first/second groups of 2 molecules forms the dimers.
-        The PBC condition is also considered when arranging the cartesian 
+        The PBC condition is also considered when arranging the cartesian
         coordinates.
         Note: this is only for aspirin so far
 
@@ -136,7 +135,7 @@ class Builder():
             - struc: ase atoms
             - id: atom id to form the short contact
         """
-        N_atoms = len(self.molecules[mol_list[0]].atoms) 
+        N_atoms = len(self.molecules[mol_list[0]].atoms)
         N_mols = int(len(struc)/N_atoms)
         inv_cell = np.linalg.inv(struc.cell.array)
         visited = []
@@ -164,8 +163,8 @@ class Builder():
         p0 = struc.get_positions()
         positions = np.zeros([len(struc), 3])
         for it, mid in enumerate(visited):
-            positions[it*N_atoms:(it+1)*N_atoms] = p0[mid*N_atoms:(mid+1)*N_atoms] 
-            positions[it*N_atoms:(it+1)*N_atoms] -= shifts[it] 
+            positions[it*N_atoms:(it+1)*N_atoms] = p0[mid*N_atoms:(mid+1)*N_atoms]
+            positions[it*N_atoms:(it+1)*N_atoms] -= shifts[it]
             #if it % 2 == 1:
             #    print(p0[mid*N_atoms+id])
             #    print(positions[it*N_atoms+id])
@@ -173,7 +172,7 @@ class Builder():
             #    print(np.linalg.norm(positions[it*N_atoms+id]-positions[(it-1)*N_atoms+id]))
             #if it == 0:
             #    print(positions[:21])
-        
+
         struc.set_positions(positions)
         return struc
         #self.xtal.write_
@@ -187,7 +186,7 @@ class Builder():
         from lammps import lammps
         from ase.io import read
         import os
-        
+
         cwd = os.getcwd()
         if not os.path.exists(folder): os.makedirs(folder)
         os.chdir(folder)
@@ -200,16 +199,16 @@ class Builder():
             f.write('variable pdamp equal 1000*${dt}\n')
             f.write('variable temperature equal {:12.3f}\n'.format(T))
             f.write('variable pressure equal {:12.3f}\n'.format(P))
-            f.write('variable xlo equal xlo\n') 
+            f.write('variable xlo equal xlo\n')
             f.write('variable xhi equal xhi\n')
-            f.write('variable ylo equal ylo\n') 
-            f.write('variable yhi equal yhi\n') 
-            f.write('variable zlo equal zlo\n') 
+            f.write('variable ylo equal ylo\n')
+            f.write('variable yhi equal yhi\n')
+            f.write('variable zlo equal zlo\n')
             f.write('variable zhi equal zhi\n')
             f.write('variable xy equal xy\n')
             f.write('variable yz equal yz\n')
             f.write('variable xz equal xz\n')
- 
+
             f.write('\ninclude lmp.in\n')
             f.write('thermo 1000\n')
             f.write('velocity all create ${temperature} 1938072 dist gaussian #mom yes rot no\n')
@@ -224,7 +223,7 @@ class Builder():
             f.write('variable zhii equal f_2[6]\n')
             f.write('variable vxy equal f_2[7]\n')
             f.write('variable vxz equal f_2[8]\n')
-            f.write('variable vyz equal f_2[9]\n')           
+            f.write('variable vyz equal f_2[9]\n')
             f.write('change_box all x final ${xloo} ${xhii} y final ${yloo} ${yhii} z final ${zloo} ${zhii} xy final ${vxy} xz final ${vxz} yz final ${vyz}\n')
             f.write('run 0\n')
             f.write('# ------------- Energy minimization\n')
@@ -259,7 +258,7 @@ class Builder():
         based on https://wiki.fysik.dtu.dk/ase/_modules/ase/build/general_surface.html#surface
         Args:
             hkl: sequence of three int
-            matrix: Atoms.cell 
+            matrix: Atoms.cell
             orthogonality: whether or not impose orthogonality
         """
         from ase.build.general_surface import ext_gcd
@@ -298,7 +297,7 @@ class Builder():
             c3 = (h, k, l)
 
             matrix = np.array([c1, c2, c3])
-            
+
         if orthogonality:
             #print('optimize the a, b vectors')
             a, b = self.optimize_lattice(cell, matrix)
@@ -336,7 +335,7 @@ class Builder():
         for i in range(-2, 2):
             for j in range(-2, 2):
                 if i!=0 or j!=0:
-                    mults.append(np.array([i, j])) 
+                    mults.append(np.array([i, j]))
         cosines = []
         a_mults = []
         b_mults = []
@@ -361,12 +360,12 @@ class Builder():
         print('Minimum angle: ', np.degrees(np.arccos(cosines[id])))
 
         return a, b
-    
+
     def check_matrix(self):
         pass
-        
+
     def set_slab(self, atoms0, mol_list0, matrix=None, hkl=None, replicate=1, dim=None,
-                layers=None, vacuum=None, separation=10.0,  
+                layers=None, vacuum=None, separation=10.0,
                 orthogonality=False, reset=True, dimer=False):
         """
         Create the slab structure from crystal with three steps:
@@ -398,7 +397,7 @@ class Builder():
 
         if matrix.size != 9:
             raise ValueError("Cannot make 3*3 matrix from the input", matrix)
-        
+
         if reset:
             atoms = make_supercell(atoms0, matrix)
             atoms = self.reset_cell_vectors(atoms)
@@ -413,7 +412,7 @@ class Builder():
             [a, b, c] = atoms.get_cell_lengths_and_angles()[:3]
             replicate = [int(np.ceil(dim[0]/a)), int(np.ceil(dim[1]/b)), int(np.ceil(dim[2]/c))]
             print("Replicate: ", replicate, len(atoms))
-            
+
         atoms *= replicate
         mol_list = mol_list0 * np.product(replicate)
 
@@ -428,7 +427,7 @@ class Builder():
             atoms.center(vacuum, axis=2)
             # move atoms upward
             #atoms.translate([0, 0, vacuum-separation])
-        
+
         self.ase_slab = atoms
         self.ase_slab_mol_list = mol_list
         self.lammps_slab = self.get_ase_lammps(atoms)
@@ -436,7 +435,7 @@ class Builder():
     def rotate_molecules(self, ase_struc, mol_list, vertices, rotation, ids):
         """
         selectively rotate some molecules based on boundary conditions.
-    
+
         Args:
             ase_struc: ase atoms
             mol_list: list of molecular ids
@@ -450,16 +449,16 @@ class Builder():
         N_per_mols = [len(self.molecules[i].atoms) for i in mol_list]
         centers = np.zeros([len(N_per_mols), 3])
         pos = ase_struc.get_positions()
-        
+
         #print(rotation)
         (axis, angle) = rotation
-        count = 0 
-    
+        count = 0
+
         # Compute the convex hull of the vertices
         convex_hull = ConvexHull(vertices)
         convex_hull_vertices = [vertices[i] for i in convex_hull.vertices]
         convex_hull_polygon = Polygon(convex_hull_vertices)
-        
+
         for i, N_per_mol in enumerate(N_per_mols):
             start = sum(N_per_mols[:i])
             end = start + N_per_mols[i]
@@ -480,7 +479,7 @@ class Builder():
         """
         cut the supercell structure by number of molecular layers
         here we ignore the first layer to avoid partial termination
-        
+
         Args:
             atoms: ase atoms sorted by molecules
             layers: int, number of layers
@@ -675,7 +674,7 @@ class Builder():
 
         def check_one_site(atoms, pos, id0, visited, lists, rmax=2.5):
             """
-            find the short distances from the given site 
+            find the short distances from the given site
             """
             ids_add = []
             dists = atoms.get_distances(id0, lists, True)
@@ -685,7 +684,7 @@ class Builder():
                     key = "{:s}-{:s}".format(atoms.symbols[id0], atoms.symbols[id])
                     if dists[i] < bonds[key]:
                         ids_add.append(id)
-                        visited.append(id)       
+                        visited.append(id)
                         #update position
                         diff = pos[id] - pos[id0]
                         shift = np.round(diff)
@@ -753,12 +752,12 @@ class Builder():
     def get_molecular_bord_ids(self, atoms, mol_list, width=0.01, axis=0):
         """
         find the groups for border and fixed molecules:
-    
+
         Args:
             width:
             axis: 0 or 1
         """
-        
+
         border_ids = []
 
         centers = self.get_molecular_centers(atoms, mol_list)
@@ -775,12 +774,12 @@ class Builder():
     def get_molecular_fix_ids(self, atoms, mol_list, width=0.01, shift=0.2, axis=0):
         """
         find the groups for border and fixed molecules:
-    
+
         Args:
             width:
             axis: 0 or 1
         """
-        
+
         border_ids = []
         fix_ids = []
 
@@ -788,7 +787,7 @@ class Builder():
         # select molecules by x-axis
         ref = centers[:, axis]
         x_hi, x_lo = ref.max() - shift, ref.min() + shift
-        # make sure the x_hi/x_lo can be found 
+        # make sure the x_hi/x_lo can be found
         x_hi = ref[np.abs(ref - x_hi).argsort()[0]]
         x_lo = ref[np.abs(ref - x_lo).argsort()[0]]
         border_ids.append(np.where( (ref > (x_lo - width)) & (ref <(x_lo + width)) )[0] + 1)
@@ -802,18 +801,18 @@ class Builder():
             for i in range(len(zs)):
                 if zs[i] < self.tol_layer/atoms.cell.array[2, 2]:
                     fix_ids.append(border_id[i]) # + 1)
- 
+
         return fix_ids
 
     def get_molecular_ids(self, atoms, mol_list, width=5.0, axis=0):
         """
         find the groups for border and fixed molecules:
-    
+
         Args:
             width:
             axis: 0 or 1
         """
-        
+
         border_ids = []
         fix_ids = []
         centers = self.get_molecular_centers(atoms, mol_list)
@@ -828,7 +827,7 @@ class Builder():
                 if zs[i] < self.tol_layer:
                     fix_ids.append(border_id[i]) # + 1)
         return border_ids, fix_ids
- 
+
     def set_task(self, task, filename=None):
         """
         set the master lammps input file from the give task
@@ -837,7 +836,7 @@ class Builder():
             task: a dictionary specifying lammps parameters
         """
         from pkg_resources import resource_filename as rf
-        # possible modes: 
+        # possible modes:
         # - bulk (single/cycle)
         # - slab (single/cycle/3pf bending)
 
@@ -845,7 +844,7 @@ class Builder():
                  'mode': 'uniaxial',
                  'pbc': 'bulk',
                  'temperature': 300.0,      # K
-                 'pressure': 1.0,           # atmospheres 
+                 'pressure': 1.0,           # atmospheres
                  'timestep': 1.0,           # fs
                  'timerelax': 100000,       # fs
                  'max_strain': 0.1,         # unitless
@@ -856,8 +855,8 @@ class Builder():
                  'indenter_distance': 100.0,# A
                  'indenter_k': 10.0,        # eV/^3
                  'indenter_t_hold': 300.0,  # ps
-                 'border_mols': [[0,0]],    # List of [a, b] 
-                 'fix_mols': [0,0],         # List of [a, b] 
+                 'border_mols': [[0,0]],    # List of [a, b]
+                 'fix_mols': [0,0],         # List of [a, b]
                  'direction': 'xz',         # shear strain
                  'pxatm': 0,                # atm
                  'pyatm': 0,                # atm
@@ -870,16 +869,16 @@ class Builder():
         ele_string = ' '.join(elements)
         _task['ele_string'] = re.sub(pattern, '', ele_string)
 
-        if _task['mode'] == 'bend': 
+        if _task['mode'] == 'bend':
             _task['pbc'] = 'slab'
 
-        if filename is None: 
+        if filename is None:
             if _task['mode'] == 'bend':
                 filename = _task['pbc'] + '-bend-' + _task['type'] + '.in'
             else:
                 filename = _task['pbc'] + '-' + _task['type'] + '.in'
 
-        if _task['direction'] in ['xx', 'yy', 'zz']: 
+        if _task['direction'] in ['xx', 'yy', 'zz']:
             _task['direction'] = ' ' + _task['direction'][0]
 
         if _task['mode'] == 'uniaxial':
@@ -904,7 +903,7 @@ class Builder():
             f.write('variable trelax equal {:12.3f}\n'.format(_task['timerelax']))
             f.write('variable deform_steps equal {:12.3f}\n'.format(_task['deform_steps']))
             f.write('variable ele_string string "{:s}"\n'.format(_task['ele_string']))
-            
+
             if _task['mode'] == 'uniaxial':
                 f.write('variable strain_total equal {:12.3f}\n'.format(_task['max_strain']))
                 f.write('variable strainrate equal {:2e}\n'.format(_task['rate']))
@@ -923,15 +922,15 @@ class Builder():
                 # Output border molecules
                 if _task['border_mols'] is not None:
                     f.write('\ngroup bord molecule ')
-                    for b in _task['border_mols']: 
+                    for b in _task['border_mols']:
                         for _b in b:
                             f.write('{:d} '.format(_b))
                 if _task['fix_mols'] is not None:
                     f.write('\ngroup fix-bord molecule ')
-                    for b in _task['fix_mols']: 
+                    for b in _task['fix_mols']:
                         f.write('{:d} '.format(b))
                     f.write('\n')
-            
+
                 # update box to make sure that xlo is smaller than indenter depth
                 #if _task['indenter_distance'] > : #
                 #    pass
@@ -949,7 +948,7 @@ class Builder():
                         line = line.replace(keywords, '')
                     f.write(line)
             #f.writelines(lines)
-    
+
     def get_dim(self, direction):
         # For tensile, the preferred direction should be no less than 80
         # For shear, the preferred plane should be no less than 80*80
@@ -997,7 +996,7 @@ class Builder():
             col = 6
         elif direction == 'xy':
             col = 7
-        
+
         name = 'Cycle-' + direction
         if label is not None: name = label + '-' + name
         fig.suptitle(name, fontsize=16)
@@ -1046,7 +1045,7 @@ if __name__ == "__main__":
     toml_file = "ost/data/aspirin_gas.toml"
     bu = Builder(toml_files=[toml_file])
     bu.set_xtal(cif=cif)
-    
+
     #=== Apply the orientation
 
     #=== Prepare lammps inputs
@@ -1055,7 +1054,7 @@ if __name__ == "__main__":
              'mode': 'uniaxial',
              'direction': 'xx',
              'max_strain': 0.1,
-             'rate': 1e+8, 
+             'rate': 1e+8,
            }
 
     # Example 2: shear
@@ -1063,7 +1062,7 @@ if __name__ == "__main__":
              'mode': 'uniaxial',
              'direction': 'xz',
              'max_strain': 0.1,
-             'rate': 1e+8, 
+             'rate': 1e+8,
             }
 
     # Example 3: bending
@@ -1072,7 +1071,7 @@ if __name__ == "__main__":
              'indenter_rate': 1e-3,     # A/fs (100 m/s)
              'border_mols': bord_ids,   # for thermostat
              'fix_mols': fix_ids,       # for freezing
-             'z_max': z_max, 
+             'z_max': z_max,
             }
 
     tasks = [task1, task2, task3]

@@ -19,6 +19,7 @@ setup(
         "ost",
         "ost.interfaces",
         "ost.lmp",
+        "ost.charmm",
         "ost.data",
         "ost.templates",
     ],
@@ -32,9 +33,9 @@ setup(
         "Operating System :: OS Independent",
     ],
     #install_requires=[
-        #"parmed>=3.4.3", 
-        #"openmm>=7.6.0", 
-        #"toml", 
+        #"parmed>=3.4.3",
+        #"openmm>=7.6.0",
+        #"toml",
         #"xmltodict"
     #],
     #python_requires=">=3.7, <=3.10",
