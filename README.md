@@ -15,6 +15,13 @@ conda activate ost
 pip install .
 ```
 
+*If you want to update the existing ost enviroment*
+
+```
+conda activate ost
+mamba env update --file environment.yml
+```
+
 ## LAMMPS Setup:
 ```
 make yes-MOLECULE
@@ -41,4 +48,6 @@ check the `3pf.py`
 
 - Qiang Zhu (qzhu8@uncc.edu)
 - Shinnosuke Hattori (shinnosuke.hattori@sony.com)
+
+
 

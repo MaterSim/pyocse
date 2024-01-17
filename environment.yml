@@ -8,7 +8,7 @@ dependencies:
   - openbabel=3.1.1
   - openmm=8.0.0
   - openff-forcefields=2023.04.1
-  - openff-toolkit=0.12.1
+  - openff-toolkit=0.14.3
   - openff-models=0.0.4 
   - openff-units=0.2.0
   - openff-utilities=0.1.8
@@ -17,7 +17,7 @@ dependencies:
   - toml=0.10.2
   - xmltodict=0.13.0
   - pyxtal=0.6.2
-  - pymatgen=2022.9.8
+  - pymatgen=2023.12.18
   #Dev tools at github commit
   - black
   - flake8
