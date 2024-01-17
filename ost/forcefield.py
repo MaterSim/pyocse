@@ -165,7 +165,7 @@ def get_openff_with_silicon(xml="openff-2.0.0.offxml"):
 
 
     # C-Si-Si
-    smirks = '[#6:1]-[#14:2]-[#*:3]'
+    smirks = '[#6:1]-[#14:2]-[*:3]'
     angle = 1.0947e+02 * unit.degree
     k = 2.2974e+02 * unit.mole**-1 * unit.radian**-2 * unit.kilocalorie
     ff2.get_parameter_handler("Angles").add_parameter({'smirks': smirks,
@@ -195,6 +195,20 @@ def get_openff_with_silicon(xml="openff-2.0.0.offxml"):
                                     'k1': k1,
                                     'idivf1': 1.0,
                                     'id': 't160'})
+
+    # *-Si-C-*
+    smirks = "[*:1]-[#14:2]-[#6:3]-[*:4]"
+    periodicity1 = 3
+    phase1 = 180.0 * unit.degree
+    k1 = 1.5 * unit.mole**-1 * unit.kilocalorie
+    ff2.get_parameter_handler("ProperTorsions").add_parameter({
+                                    'smirks': smirks,
+                                    'periodicity1': periodicity1,
+                                    'phase1': phase1,
+                                    'k1': k1,
+                                    'idivf1': 1.0,
+                                    'id': 't161'})
+
 
     # Referenec *-P(*)-*
     # smirks="[*:1]~[#7X3$(*~[#15,#16](!-[*])):2](~[*:3])~[*:4]

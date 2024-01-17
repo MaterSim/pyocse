@@ -5,7 +5,7 @@ from readline import parse_and_bind
 
 import numpy as np
 from openmm import unit as u
-from openmm.app import PME, Modeller
+from openmm.app import Modeller
 from openmm.app.forcefield import ForceField
 from parmed import ParameterSet, Structure
 from parmed.amber import AmberParm
