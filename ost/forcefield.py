@@ -118,6 +118,16 @@ def get_openff_with_silicon(xml="openff-2.0.0.offxml"):
                                                       'length': length,
                                                       'k': k,
                                                       'id': 'b89'})
+    # To add Si-C/Si-C-Si
+    # Si-C
+    smirks = '[#14:1]-[#6:2]'
+    length = 1.697 * unit.angstrom
+    k = 700 * unit.angstrom ** -2 * unit.mole ** -1 * unit.kilocalorie
+    ff2.get_parameter_handler("Bonds").add_parameter({'smirks': smirks,
+                                                      'length': length,
+                                                      'k': k,
+                                                      'id': 'b90'})
+
 
     # The Si–O–Si angle is
     # 144° in α-quartz,
@@ -152,6 +162,16 @@ def get_openff_with_silicon(xml="openff-2.0.0.offxml"):
                                                        'angle': angle,
                                                        'k': k,
                                                        'id': 'a41'})
+
+
+    # C-Si-Si
+    smirks = '[#6:1]-[#14:2]-[#*:3]'
+    angle = 1.0947e+02 * unit.degree
+    k = 2.2974e+02 * unit.mole**-1 * unit.radian**-2 * unit.kilocalorie
+    ff2.get_parameter_handler("Angles").add_parameter({'smirks': smirks,
+                                                       'angle': angle,
+                                                       'k': k,
+                                                       'id': 'a42'})
 
 
     # Reference *-P-O-*
