@@ -12,13 +12,12 @@ dependencies:
   - openff-models=0.0.4 
   - openff-units=0.2.0
   - openff-utilities=0.1.8
+  - openff-interchange=0.3.18
   - ambertools=22.4
   - toml=0.10.2
   - xmltodict=0.13.0
-  - pyxtal=0.5.5
+  - pyxtal=0.6.2
   - pymatgen=2022.9.8
-  - pip:
-    - git+https://github.com/shinnosukehattori/openff-interchange@main
   #Dev tools at github commit
   - black
   - flake8

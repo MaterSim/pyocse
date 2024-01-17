@@ -34,11 +34,13 @@ class forcefield():
             residuename = 'U{:02d}'.format(i)
             ffdic = converter(smi).ffdic
             #print(ffdic, ffdic.keys())
+            # Pass the partial charge
             molecule = ommffs_to_paramedstruc(ffdic["omm_forcefield"],
                                               ffdic["mol2"],
                                               cls=ParmEdStructure)
             molecule.ffdic = ffdic
             molecule.change_residue_name(residuename)
+            molecule.set_charges(self.partial_charges[i].m)
             self.molecules.append(molecule)
 
     def set_partial_charges(self):
@@ -51,6 +53,7 @@ class forcefield():
             molecule = Molecule.from_smiles(smi)
             molecule.assign_partial_charges(self.chargemethod)
             self.partial_charges.append(molecule.partial_charges)
+        #print(self.partial_charges)
 
 
 def get_openff(smiles, ff_name="openff-2.0.0.offxml"):
@@ -206,4 +209,5 @@ if __name__ == "__main__":
         for charge in ['mmff94', 'am1bcc', 'am1-mulliken', 'gasteiger']:
             print('\ntest', style, charge)
             ff = forcefield(smiles, style=style, chargemethod=charge)
+            print(ff.partial_charges)
 

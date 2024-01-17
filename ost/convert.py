@@ -10,6 +10,7 @@ from ost.utils import dump_toml, temporary_directory_change
 from openff.toolkit.topology import Molecule, Topology
 from openff.toolkit.typing.engines.smirnoff import ForceField
 from openff.interchange import Interchange
+from ost.interchange_parmed import _to_parmed
 from openff.units import unit
 
 
@@ -92,7 +93,7 @@ def convert_openff(
         topology = Topology.from_molecules(molecule)
         forcefield = ForceField(forcefield_name)
         out = Interchange.from_smirnoff(force_field=forcefield, topology=topology)
-        struc = ParmEdStructure.from_structure(out._to_parmed())
+        struc = ParmEdStructure.from_structure(_to_parmed(out))
         struc.box = None
 
     dic = {
