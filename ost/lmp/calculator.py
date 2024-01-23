@@ -22,7 +22,6 @@ class LAMMPSCalculatorMixIn:
             self.lmp.command(cmd)
 
     def easy_prepostcmds(self, ens):
-
         if "plumed" in ens:
             pre, post = self._easy_prepostcmds_plumed(ens)
         else:
@@ -34,15 +33,17 @@ class LAMMPSCalculatorMixIn:
         postcmds = []
 
         if "temperature" in ens:
-            if type(ens["temperature"]) is str and ":" in ens["temperature"]:
+            if isinstance(ens["temperature"], str) and ":" in ens["temperature"]:
                 t0, t1 = ens["temperature"].split(":")
             else:
                 t0 = ens["temperature"]
                 t1 = t0
-            precmds += ["velocity all create {} {} rot yes dist gaussian".format(t0, seed)]
+            precmds += [
+                "velocity all create {} {} rot yes dist gaussian".format(t0, seed)
+            ]
 
         if "pressure" in ens:
-            if type(ens["pressure"]) is str and ":" in ens["pressure"]:
+            if isinstance(ens["pressure"], str) and ":" in ens["pressure"]:
                 p0, p1 = ens["pressure"].split(":")
             else:
                 p0 = ens["pressure"]
@@ -59,23 +60,30 @@ class LAMMPSCalculatorMixIn:
         elif "temperature" not in ens and "pressure" in ens:
             precmds += ["fix ensamble all nph {} {} {} {}".format(key, p0, p1, pdump)]
         elif "temperature" in ens and "pressure" in ens:
-            precmds += ["fix ensamble all npt temp {} {} {} {} {} {} {}".format(t0, t1, tdump, key, p0, p1, pdump)]
+            precmds += [
+                "fix ensamble all npt temp {} {} {} {} {} {} {}".format(
+                    t0, t1, tdump, key, p0, p1, pdump
+                )
+            ]
         postcmds += ["unfix ensamble"]
 
         return precmds, postcmds
 
     def _easy_prepostcmds_plumed(self, ens, tdump=100.0, pdump=20000.0):
-
         precmds = []
         postcmds = []
 
-        precmds += ["fix plumed all plumed plumedfile {} outfile lmp.log_plumed".format(ens["plumed"])]
+        precmds += [
+            "fix plumed all plumed plumedfile {} outfile lmp.log_plumed".format(
+                ens["plumed"]
+            )
+        ]
         postcmds += ["unfix plumed"]
 
         if "temperature" not in ens:
             raise
 
-        if type(ens["temperature"]) is str and ":" in ens["temperature"]:
+        if type(ens["temperature"]) is str and ":" in ens["temperature"]:  # noqa: E721
             t0, t1 = ens["temperature"].split(":")
         else:
             t0 = ens["temperature"]
@@ -87,7 +95,7 @@ class LAMMPSCalculatorMixIn:
         postcmds += ["unfix tcont"]
 
         if "pressure" in ens:
-            if type(ens["pressure"]) is str and ":" in ens["pressure"]:
+            if isinstance(ens["pressure"], str) and ":" in ens["pressure"]:
                 p0, p1 = ens["pressure"].split(":")
             else:
                 p0 = ens["pressure"]
@@ -146,20 +154,26 @@ class LAMMPSCalculatorMixIn:
         energy["short"] = float(thermo.E_coul[-1])
         energy["coul"] = energy["short"] + energy["long"]
         energy["tail"] = float(thermo.E_tail[-1])
-        energy["total"] = energy["nonbonded"] + energy["bond"] + energy["angle"] + energy["torsion"]
+        energy["total"] = (
+            energy["nonbonded"] + energy["bond"] + energy["angle"] + energy["torsion"]
+        )
         energy["pot"] = float(thermo.PotEng[-1])
         return energy
 
 
 class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
-
     default_parameters = dict(
         atom_types=None,
         atom_type_masses=None,
         log_file="aselog.lammps",
         lammps_name=None,
         keep_alive=True,
-        lammps_header=["units real", "atom_style full", "atom_modify map array sort 0 0", "box tilt large"],
+        lammps_header=[
+            "units real",
+            "atom_style full",
+            "atom_modify map array sort 0 0",
+            "box tilt large",
+        ],
         amendments=[],
         post_changebox_cmds=None,
         boundary=True,
@@ -192,16 +206,16 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
         # do propagate_post
 
     def build(self, atoms):
-
         info = atoms.info["lammps"]
         for i, (_, resname, nmol) in enumerate(info["lammps_molecules"]):
-            cmd = "create_atoms 0 random {} {} NULL mol mol{} {} #{}".format(nmol, seed, i, seed, resname)
+            cmd = "create_atoms 0 random {} {} NULL mol mol{} {} #{}".format(
+                nmol, seed, i, seed, resname
+            )
             self.lmp.command(cmd)
 
         # self.previous_atoms_numbers = atoms.numbers.copy()
 
     def initialise_lammps(self, atoms):
-
         info = atoms.info["lammps"]
 
         # Initialising commands
@@ -223,7 +237,6 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
         # Initialize molecules
         # Todo multi molecule support
         if self.parameters.read_molecular_info:
-
             # Initialize box
             if self.parameters.create_box:
                 # count number of known types
@@ -264,8 +277,10 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
         # raise an error if it is not there. Perhaps it is needed to
         # ensure the cell stresses are calculated
         # self.lmp.command('thermo_style custom pe pxx emol ecoul')
-        cmd = "thermo_style custom step temp vol press etotal pe ke epair ecoul elong evdwl ebond eangle edihed eimp emol etail \
+        cmd = (
+            "thermo_style custom step temp vol press etotal pe ke epair ecoul elong evdwl ebond eangle edihed eimp emol etail \
     cella cellb cellc cellalpha cellbeta cellgamma density pxx pyy pzz pxy pxy pyz"
+        )
         self.lmp.command(cmd)
         self.lmp.command("thermo_modify lost ignore flush yes")
 
@@ -290,12 +305,23 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
         cmd = f"dump mydump all custom {sdump} {self.dumpdir}/out.*.lammpstrj id mol type q x y z ix iy iz c_pe_all c_pe_pair element"
         self.lmp.command(cmd)
 
-        cmd = "dump_modify mydump element %s pad 9 sort id" % " ".join(info["element_list"])
+        cmd = "dump_modify mydump element %s pad 9 sort id" % " ".join(
+            info["element_list"]
+        )
         self.lmp.command(cmd)
 
         self.initialized = True
 
-    def propagate(self, atoms, properties, system_changes, n_steps, dt=None, dt_not_real_time=False, velocity_field=None):
+    def propagate(
+        self,
+        atoms,
+        properties,
+        system_changes,
+        n_steps,
+        dt=None,
+        dt_not_real_time=False,
+        velocity_field=None,
+    ):
         """ "atoms: Atoms object
             Contains positions, unit-cell, ...
         properties: list of str
@@ -392,7 +418,9 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
             if dt_not_real_time:
                 self.lmp.command("timestep %.30f" % dt)
             else:
-                self.lmp.command("timestep %.30f" % convert(dt, "time", "ASE", self.units))
+                self.lmp.command(
+                    "timestep %.30f" % convert(dt, "time", "ASE", self.units)
+                )
         self.lmp.command("run %d" % n_steps)
 
         if n_steps > 0:
@@ -413,7 +441,9 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
                 atoms.set_velocities(convert(vel, "velocity", self.units, "ASE"))
 
         # Extract the forces and energy
-        self.results["energy"] = convert(self.lmp.extract_variable("pe", None, 0), "energy", self.units, "ASE")
+        self.results["energy"] = convert(
+            self.lmp.extract_variable("pe", None, 0), "energy", self.units, "ASE"
+        )
         self.results["free_energy"] = self.results["energy"]
 
         stress = np.empty(6)
@@ -433,7 +463,9 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
         stress_mat[0, 1] = stress[5]
         stress_mat[1, 0] = stress[5]
         if self.coord_transform is not None:
-            stress_mat = np.dot(self.coord_transform.T, np.dot(stress_mat, self.coord_transform))
+            stress_mat = np.dot(
+                self.coord_transform.T, np.dot(stress_mat, self.coord_transform)
+            )
         stress[0] = stress_mat[0, 0]
         stress[1] = stress_mat[1, 1]
         stress[2] = stress_mat[2, 2]
@@ -444,7 +476,12 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
         self.results["stress"] = convert(-stress, "pressure", self.units, "ASE")
 
         # definitely yields atom-id ordered force array
-        f = convert(np.array(self.lmp.gather_atoms("f", 1, 3)).reshape(-1, 3), "force", self.units, "ASE")
+        f = convert(
+            np.array(self.lmp.gather_atoms("f", 1, 3)).reshape(-1, 3),
+            "force",
+            self.units,
+            "ASE",
+        )
 
         if self.coord_transform is not None:
             self.results["forces"] = np.dot(f, self.coord_transform)
@@ -488,8 +525,18 @@ class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
 
 
 class LAMMPSCalculator(LAMMPSCalculatorMixIn):
-    def __init__(self, struc, base="lmp", dumpdir="outputs", nproc=1, lammps_name=None, *args, **lwargs):
+    def __init__(
+        self,
+        struc,
+        base="lmp",
+        dumpdir="outputs",
+        nproc=1,
+        lammps_name=None,
+        *args,
+        **lwargs,
+    ):
         from lammps import PyLammps  # , get_thermo_data
+
         self.struc = struc
         self.base = base
         cmdargs = ["-log", f"{base}.log", "-nocite"]
@@ -510,7 +557,7 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
             lammps_name = ""
         else:
             lammps_name = None
-            #lammps_name = binary_name.split("lmp_")[-1]
+            # lammps_name = binary_name.split("lmp_")[-1]
         self.lmp = PyLammps(name=lammps_name, cmdargs=cmdargs, *args, **lwargs)
 
         struc.write_lammps(self.lin, self.ldat)
