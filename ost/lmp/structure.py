@@ -41,6 +41,11 @@ thermo_style custom step temp vol press etotal pe ke epair ecoul elong evdwl ebo
 #    cella cellb cellc cellalpha cellbeta cellgamma density pxx pyy pzz pxy pxy pyz
 thermo_modify lost ignore flush yes
 
+compute peatom all pe/atom
+dump 1 all custom 1 dump.lammpstrj id type q x y z fx fy fz c_peatom element
+dump_modify 1 sort id pad 9 element {eles:}
+
+#minimize 1e-5 1e-5 100 100
 #run 0
 
 """
@@ -109,7 +114,7 @@ thermo_modify lost ignore flush yes
         for i, (_k, t) in enumerate(self.atomtypes_with_resname.items(), 1):
             line = "pair_coeff {0:d} {0:d} {1:11.7f} {2:11.7f}\n".format(i, t.epsilon, t.sigma)
             of.write(line)
-        of.write(self.TailLmpInput)
+        of.write(self.TailLmpInput.format(eles=" ".join(self.get_element_list())))
 
     def _write_dat_head(self, of):
         of.write("\n")
