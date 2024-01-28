@@ -92,8 +92,8 @@ def get_gaff(smiles, chargemethod="gas", base="ff"):
         pmgmol.to(filename=str(path), fmt="mol2")
 
         # Don't run charge analysis for 1-atom residue
-        if len(ase_atoms) == 1:
-            chargemethod = None
+        #if len(ase_atoms) == 1:
+        chargemethod = None
         amber_files = run_antechamber(
             "test",
             path,

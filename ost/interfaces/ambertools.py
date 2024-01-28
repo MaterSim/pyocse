@@ -44,6 +44,8 @@ def run_antechamber(
             chg = "-nc " + str(net_charge)
     elif chargemethod is not None:
         chg = f"-c {chargemethod} -nc 0"
+    else:
+        chg = ''
     # prepare commands for ambertools
     acopts = f"{chg} -m {spin_multiplicity} -rn {resname} -s 2 -seq no -pf y -dr no "
     if atomtyping == "gaff":
