@@ -603,7 +603,6 @@ class Builder():
 
         Args:
             Atoms: the ase atoms following the atomic order in self.molecules
-            numMols: list of integers
 
         Return:
             Atoms with lammps ff information

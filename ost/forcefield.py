@@ -7,7 +7,8 @@ from openff.units import unit
 from ost.interchange_parmed import _to_parmed
 from ost.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
 from ost.interfaces.rdkit import smiles_to_ase_and_pmg
-
+from ost.lmp import LAMMPSStructure
+import numpy as np
 
 class forcefield:
     """
@@ -57,6 +58,52 @@ class forcefield:
             molecule.assign_partial_charges(self.chargemethod)
             self.partial_charges.append(molecule.partial_charges)
         # print(self.partial_charges)
+
+    def get_ase_lammps(self, atoms):
+        """
+        Add the lammps ff information into the give atoms object
+
+        Args:
+            Atoms: the ase atoms following the atomic order in self.molecules
+
+        Return:
+            Atoms with lammps ff information
+        """
+        # first adjust the cell into lammps format
+        pbc = atoms.pbc
+        atoms = self.reset_lammps_cell(atoms)
+        if len(self.molecules) == 1:
+            pd_struc = self.molecules[0].copy(cls=ParmEdStructure)
+            pd_struc.update(atoms)
+            atoms = LAMMPSStructure.from_structure(pd_struc)
+        else:
+            from functools import reduce
+            from operator import add
+            mols = []
+            for i, m in enumerate(self.xtal_n_mols):
+                mols += [self.molecules[i]*m]
+            pd_struc = reduce(add, mols) #self.molecules)
+            pd_struc.update(atoms)
+            atoms = LAMMPSStructure.from_structure(pd_struc)
+            #struc.restore_ffdic()
+        atoms.set_pbc(pbc)
+        atoms.title = '.'.join(self.smiles)
+        return atoms
+
+    def reset_lammps_cell(self, atoms0):
+        """
+        set the cell into lammps format
+        """
+        from ase.calculators.lammpslib import convert_cell
+
+        atoms = atoms0.copy()
+        mat, coord_transform = convert_cell(atoms0.cell)
+        if coord_transform is not None:
+            pos = np.dot(atoms0.positions, coord_transform.T)
+            atoms.set_cell(mat.T)
+            atoms.set_positions(pos)
+        return atoms
+
 
 
 def get_openff(smiles, chargemethod, ff_name="openff-2.0.0.offxml"):

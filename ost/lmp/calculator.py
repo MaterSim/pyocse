@@ -7,6 +7,7 @@ import numpy as np
 from ase.calculators.lammps import convert
 from ase.calculators.lammpslib import LAMMPSlib
 from ase.geometry import wrap_positions
+from ase import units
 
 from ost.utils import which_lmp
 
@@ -136,10 +137,10 @@ class LAMMPSCalculatorMixIn:
 
     def get_energy(self):
         precmds = [
-            "fix ensamble all nve",
+            "fix ensemble all nve",
         ]
-        postcmds = ["unfix ensamble"]
-        self.lmp
+        postcmds = ["unfix ensemble"]
+        # self.lmp
         self._easy_run(0, precmds, postcmds)
         thermo = self.lmp.last_run[-1]
         energy = {}
@@ -159,6 +160,46 @@ class LAMMPSCalculatorMixIn:
         )
         energy["pot"] = float(thermo.PotEng[-1])
         return energy
+
+    def express_evaluation(self):
+        """
+        Express evaluation of single point energy/force/stress
+
+        lammps real units:
+        energy = kcal/mol
+        time = femtoseconds
+        force = (kcal/mol)/Angstrom
+        pressure = atmospheres
+        """
+        precmds = [
+            "fix ensemble all nve",
+            "variable pxx equal pxx",
+            "variable pyy equal pyy",
+            "variable pzz equal pzz",
+            "variable pyz equal pyz",
+            "variable pxz equal pxz",
+            "variable pxy equal pxy",
+            "variable fx atom fx",
+            "variable fy atom fz",
+            "variable fz atom fz",
+        ]
+        postcmds = ["unfix ensemble"]
+
+        self._easy_run(0, precmds, postcmds)
+        thermo = self.lmp.last_run[-1]
+        energy = float(thermo.TotEng[-1]) * units.kcal/units.mol
+        stress = np.zeros(6)
+        stress_vars = ['pxx', 'pyy', 'pzz', 'pyz', 'pxz', 'pxy']
+
+        for i, var in enumerate(stress_vars):
+            stress[i] = self.lmp.variables[var].value
+        fx = np.frombuffer(self.lmp.variables['fx'].value)
+        fy = np.frombuffer(self.lmp.variables['fy'].value)
+        fz = np.frombuffer(self.lmp.variables['fz'].value)
+        stress = -stress * 101325 * units.Pascal
+        forces = np.vstack((fx, fy, fz)) * units.kcal/units.mol
+
+        return energy, forces, stress
 
 
 class LAMMPSAseCalculator(LAMMPSlib, LAMMPSCalculatorMixIn):
@@ -552,7 +593,7 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
             binary_name = which_lmp("lmp_" + lammps_name)
         else:
             binary_name = which_lmp()
-        print(binary_name)
+        print("binary name: ", binary_name)
         if binary_name == "lmp":
             lammps_name = ""
         else:
