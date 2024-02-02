@@ -197,7 +197,7 @@ class LAMMPSCalculatorMixIn:
         fy = np.frombuffer(self.lmp.variables['fy'].value)
         fz = np.frombuffer(self.lmp.variables['fz'].value)
         stress = -stress * 101325 * units.Pascal
-        forces = np.vstack((fx, fy, fz)) * units.kcal/units.mol
+        forces = np.vstack((fx, fy, fz)).T * units.kcal/units.mol
 
         return energy, forces, stress
 
@@ -573,6 +573,7 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
         dumpdir="outputs",
         nproc=1,
         lammps_name=None,
+        lmp_instance=None,
         *args,
         **lwargs,
     ):
@@ -580,7 +581,7 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
 
         self.struc = struc
         self.base = base
-        cmdargs = ["-log", f"{base}.log", "-nocite"]
+        cmdargs = ["-screen", "none", "-log", f"{base}.log", "-nocite"]
         self.lin = f"{base}.in"
         self.ldat = f"{base}.dat"
         self.dumpdir = dumpdir
@@ -593,15 +594,20 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
             binary_name = which_lmp("lmp_" + lammps_name)
         else:
             binary_name = which_lmp()
-        print("binary name: ", binary_name)
+        #print("binary name: ", binary_name)
         if binary_name == "lmp":
             lammps_name = ""
         else:
             lammps_name = None
             # lammps_name = binary_name.split("lmp_")[-1]
-        self.lmp = PyLammps(name=lammps_name, cmdargs=cmdargs, *args, **lwargs)
+        #
+        if lmp_instance:
+            self.lmp = lmp_instance
+            self.lmp.command('clear')
+        else:
+            self.lmp = PyLammps(name=lammps_name, cmdargs=cmdargs, *args, **lwargs)
 
-        struc.write_lammps(self.lin, self.ldat)
+        struc.write_lammps(self.lin, self.ldat)#; print(os.system('grep pair_coeff '+ self.lin))
         self.restart = False
         if not os.path.exists(dumpdir):
             os.mkdir(dumpdir)
