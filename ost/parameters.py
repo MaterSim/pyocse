@@ -14,13 +14,6 @@ from ost.lmp import LAMMPSCalculator
 from mace.calculators import mace_mp
 from lammps import PyLammps  # , get_thermo_data
 
-#def string_to_array(s):
-#    """Converts a formatted string back into a 2D NumPy array."""
-#    # Split the string into lines, filter out empty lines, then split each line into numbers
-#    lines = filter(None, s.strip().split('\n'))
-#    array = [list(map(float, line.split())) for line in lines]
-#    return np.array(array)
-
 def string_to_array(s):
     """Converts a formatted string back into a 1D or 2D NumPy array."""
     # Split the string into lines
@@ -302,7 +295,10 @@ class ForceFieldParameters:
                 id2 = id1 + self.N_charges
                 do_charge = True
             sub_paras.append(parameters[id1:id2])
-            sub_bounds.append(self.bounds[id1:id2])
+            if term != 'charge':
+                sub_bounds.append(self.bounds[id1:id2])
+            else:
+                sub_bounds.append([(0.5, 2.0)])
             count += id2 - id1
             if do_charge:
                 shift = self.N_bond + self.N_angle + self.N_proper + self.N_vdW
@@ -431,7 +427,7 @@ class ForceFieldParameters:
     def __repr__(self):
         return str(self)
 
-    def augment_ref_configurations(self, ref_structure, fmax=0.1, steps=250):
+    def augment_ref_configurations(self, ref_structure, fmax=0.1, steps=250, N_vibration=10):
         """
         Generate more reference data based on input structure, including
         1. Fully optimized structue
@@ -460,7 +456,7 @@ class ForceFieldParameters:
         ref_dic['tag'] = 'minimum'
         ref_dics.append(ref_dic)
 
-        print('# Get the elastic configurations: 3*', len(coefs_stress))
+        print('# Get the elastic configurations: 3 * {:d}'.format(len(coefs_stress)))
         cell0 = ref_structure.cell.array
         for ax in range(3):
             for coef in coefs_stress:
@@ -472,10 +468,10 @@ class ForceFieldParameters:
                 ref_dic['tag'] = 'elastic'
                 ref_dics.append(ref_dic)
 
-        print('# Get the atomic purturbation: 10*', len(dxs))
+        print('# Get the atomic purturbation: {:d} * {:d}'.format(N_vibration, len(dxs)))
         pos0 = ref_structure.get_positions()
         for dx in dxs:
-            for i in range(10):
+            for i in range(N_vibration):
                 structure = ref_structure.copy()
                 pos = pos0.copy()
                 pos += np.random.uniform(-dx, dx, size=pos0.shape)
@@ -566,7 +562,10 @@ class ForceFieldParameters:
 
         opt_dict = {}
         for i, term in enumerate(terms):
-            opt_dict[term] = values[i]
+            if term in self.terms:
+                opt_dict[term] = np.array(values[i])
+            else:
+                raise ValueError("Cannot the unknown FF term", term)
         return opt_dict
 
 
@@ -609,20 +608,39 @@ class ForceFieldParameters:
             assert(len(parameters0) == len(self.params_init))
         self.update_ff_parameters(parameters0)
 
-        terms = opt_dict.keys()
-        values = [opt_dict[term] for term in terms]
-        ids = []
-        for value in values:
-            if len(ids) > 0:
-                ids.append(ids[-1] + len(value))
-            else:
-                ids.append(len(value))
+        terms = list(opt_dict.keys())
+        # Move the charge term to the end
+        if 'charge' in terms:
+            terms.pop(terms.index('charge'))
+            terms.append('charge')
+            charges = opt_dict['charge']
+        else:
+            charges = None
 
-        x = [item for sublist in values for item in sublist]
-        _, sub_bounds, sub_constraints = self.get_sub_parameters(parameters0, terms)
+        # Set up the input for optimization, including x, bounds, args
+        x = []
+        ids = []
+
+        for term in terms:
+            if len(ids) > 0:
+                if term != 'charge':
+                    x.extend(opt_dict[term])
+                    ids.append(ids[-1] + len(opt_dict[term]))
+                else:
+                    x.extend([1.0])
+            else:
+                if term != 'charge':
+                    x.extend(opt_dict[term])
+                    ids.append(len(opt_dict[term]))
+                else:
+                    x.extend([1.0])
+
+        #print("Starting", x)
+        #x = [item for sublist in values for item in sublist]
+        _, sub_bounds, _ = self.get_sub_parameters(parameters0, terms)
         bounds = [item for sublist in sub_bounds for item in sublist]
 
-        def obj_fun(x, ref_dics, parameters0, e_offset, ids):
+        def obj_fun(x, ref_dics, parameters0, e_offset, ids, charges=None):
             """
             Split the x into list
             """
@@ -634,49 +652,39 @@ class ForceFieldParameters:
                     id1 = ids[i-1]
                 values.append(x[id1:ids[i]])
 
+            # The last x value is the ratio of charge
+            #print(charges, x[-1])
+            if charges is not None:
+                values.append(x[-1] * charges)
+            #print(terms, values)
             parameters = self.set_sub_parameters(values, terms, parameters0)
             self.update_ff_parameters(parameters)
             objective = self.get_objective(ref_dics, e_offset)
             #print("Debugging", values[0][:5], objective)
             return objective
 
-        constraints = []
-        for con in sub_constraints:
-            (id1, id2, chg_sum) = con
-            def fun(x):
-                return sum(x[id1:id2]) - chg_sum
-            constraints.append({'type': 'eq', 'fun': fun})#sum(x[id1:id2])-chg_sum})
         # set call back function for debugging
-
-        def objective_function_wrapper(x, ref_dics, parameters0, e_offset, ids):
+        def objective_function_wrapper(x, ref_dics, parameters0, e_offset, ids, charges):
             global last_function_value
-            last_function_value = obj_fun(x, ref_dics, parameters0, e_offset, ids)
+            last_function_value = obj_fun(x, ref_dics, parameters0, e_offset, ids, charges)
             return last_function_value
 
         def my_callback(xk):
-            print(f"Current solution: {xk[:2]}, Function value {last_function_value}")
+            print(f"Solution: {xk[:2]}, Objective: {last_function_value}")
         callback = my_callback if debug else None
 
-        if len(constraints) > 0:
-            res = minimize(#obj_fun,
-                           objective_function_wrapper,
-                           x,
-                           args=(ref_dics, parameters0, e_offset, ids),
-                           options={'maxiter': steps, 'disp': True},
-                           bounds = bounds,
-                           constraints = constraints,
-                           callback = callback,
-                           )
-        else:
-            res = minimize(#obj_fun,
-                           objective_function_wrapper,
-                           x,
-                           method = 'Nelder-Mead',
-                           args = (ref_dics, parameters0, e_offset, ids),
-                           options = {'maxiter': steps, 'disp': True},
-                           bounds = bounds,
-                           callback = callback,
-                           )
+        # Actual optimization
+        res = minimize(#obj_fun,
+                       objective_function_wrapper,
+                       x,
+                       method = 'Nelder-Mead',
+                       args = (ref_dics, parameters0, e_offset, ids, charges),
+                       options = {'maxiter': steps, 'disp': True},
+                       bounds = bounds,
+                       callback = callback,
+                       )
+
+        # Rearrange the optimized parameters to the list of values
         values = []
         for i in range(len(ids)):
             if i == 0:
@@ -684,6 +692,10 @@ class ForceFieldParameters:
             else:
                 id1 = ids[i-1]
             values.append(res.x[id1:ids[i]])
+
+        # The last x value is the ratio of charge
+        if charges is not None:
+            values.append(res.x[-1]*charges)
 
         return res.x, res.fun, values
 
