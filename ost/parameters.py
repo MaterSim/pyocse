@@ -841,6 +841,63 @@ class ForceFieldParameters:
         # Compute and return report on multiple references
         pass
 
+    def plot_parameters(self, ax, parameters1, paramters2=None, quantities='bond-1'):
+        """
+        plot the
+        """
+        pass
+
+    def plot_ff_results(self, axes, parameters, ref_dics, offset_opt=None, label='Init'):
+        """
+        Plot the results of FF prediction as compared to the references in
+        terms of Energy, Force and Stress values.
+        Args:
+            axes (list): list of matplotlib axes
+            parameters (1D array): array of full FF parameters
+            ref_dics (dict): reference data
+            offset_opt (float): offset values for energy prediction
+            label (str):
+        """
+
+        # Set up the ff engine
+        self.update_ff_parameters(parameters)
+        if offset_opt is None: offset_opt = self.optimize_offset(ref_dics)
+
+        ff_eng, ff_force, ff_stress = [], [], []
+        ref_eng, ref_force, ref_stress = [], [], []
+        for ref_dic in ref_dics:
+            ff_dic = self.evaluate_ff_single(ref_dic['structure'], options=ref_dic['options'])
+            ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
+            ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
+            if ref_dic['options'][1]:
+                ff_force.extend(ff_dic['forces'].tolist())
+                ref_force.extend(ref_dic['forces'].tolist())
+            if ref_dic['options'][2]:
+                ff_stress.extend(ff_dic['stress'].tolist())
+                ref_stress.extend(ref_dic['stress'].tolist())
+        ff_eng = np.array(ff_eng)
+        ff_force = np.array(ff_force)
+        ff_stress = np.array(ff_stress)
+        ref_eng = np.array(ref_eng)
+        ref_force = np.array(ref_force)
+        ref_stress = np.array(ref_stress)
+
+        mse_eng = np.sqrt(np.sum((ff_eng-ref_eng)**2))
+        mse_for = np.sqrt(np.sum((ff_force-ref_force)**2))
+        mse_str = np.sqrt(np.sum((ff_stress-ref_stress)**2))
+        label1 = 'Energy {:s}: {:.2f}'.format(label, mse_eng)
+        label2 = 'Forces {:s}: {:.2f}'.format(label, mse_for)
+        label3 = 'Stress {:s}: {:.2f}'.format(label, mse_str)
+        axes[0].scatter(ref_eng, ff_eng, label=label1)
+        axes[1].scatter(ref_force, ff_force, label=label2)
+        axes[2].scatter(ref_stress, ff_stress, label=label3)
+
+        for ax in axes:
+            ax.set_xlabel('Reference')
+            ax.set_ylabel('FF')
+            ax.legend()
+
+        return axes
 
 
 if __name__ == "__main__":
