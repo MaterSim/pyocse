@@ -1,9 +1,10 @@
-import json
 import xml.etree.ElementTree as ET
-from copy import deepcopy
+from xml.dom import minidom
+
 import numpy as np
 from scipy.optimize import minimize
 
+from ase import Atoms
 from ase.optimize.fire import FIRE
 from ase.constraints import ExpCellFilter
 from ase.spacegroup.symmetrize import FixSymmetry
@@ -13,11 +14,92 @@ from ost.lmp import LAMMPSCalculator
 from mace.calculators import mace_mp
 from lammps import PyLammps  # , get_thermo_data
 
+#def string_to_array(s):
+#    """Converts a formatted string back into a 2D NumPy array."""
+#    # Split the string into lines, filter out empty lines, then split each line into numbers
+#    lines = filter(None, s.strip().split('\n'))
+#    array = [list(map(float, line.split())) for line in lines]
+#    return np.array(array)
+
+def string_to_array(s):
+    """Converts a formatted string back into a 1D or 2D NumPy array."""
+    # Split the string into lines
+    lines = s.strip().split('\n')
+
+    # Check if it's a 1D or 2D array based on the number of lines
+    if len(lines) == 1:
+        # Treat as 1D array if there's only one line
+        array = np.fromstring(lines[0][1:-1], sep=',')
+        #print(lines); print(lines[0][1:-1]); print(array); import sys; sys.exit()
+    else:
+        # Treat as 2D array if there are multiple lines
+        array = [np.fromstring(line, sep=' ') for line in lines if line]
+        array = np.array(array)
+
+    return array
+
+def array_to_string(arr):
+    """Converts a 2D NumPy array to a string format with three numbers per line."""
+    lines = []
+    for row in arr:
+        for i in range(0, len(row), 3):
+            line_segment = ' '.join(map(str, row[i:i+3]))
+            lines.append(line_segment)
+    return '\n' + '\n'.join(lines) + '\n'
+
+def xml_to_dict_list(filename):
+    # Parse the XML file
+    tree = ET.parse(filename)
+    root = tree.getroot()
+
+    data = []
+    for item in root.findall('structure'):
+        item_dict = {}
+        for child in item:
+            key = child.tag
+            text = child.text.strip()
+            # Check if the field should be converted back to an array
+            if key in ['lattice', 'position', 'forces', 'numbers',
+                       'bond', 'angle', 'proper', 'vdW', 'charge']:
+
+                if text != 'None':
+                    #print(text)
+                    value = string_to_array(text)
+                    #if key == 'position': print(value, value.shape)
+                    if key == 'numbers': print(value, value.shape)
+                else:
+                    value = None
+            else:
+                # Attempt to convert numeric values back to float/int, fall back to string
+                try:
+                    value = float(text)
+                    if value.is_integer():
+                        value = int(value)
+                except ValueError:
+                    if text == 'None':
+                        value = None
+                    else:
+                        value = text
+
+            item_dict[key] = value
+        data.append(item_dict)
+
+    return data
+
+
+def prettify(elem):
+    """Return a pretty-printed XML string for the Element."""
+    rough_string = ET.tostring(elem, 'utf-8')
+    reparsed = minidom.parseString(rough_string)
+    return reparsed.toprettyxml(indent="  ")
+
 """
 A class to handle the optimization of force field parameters
 for molecular simulation.
 """
 class ForceFieldParameters:
+
+
     def __init__(self,
                  smiles = ['CC(=O)OC1=CC=CC=C1C(=O)O'],
                  style = 'gaff',
@@ -62,6 +144,7 @@ class ForceFieldParameters:
             self.lmp = PyLammps(name=None, cmdargs=cmdargs)
         self.f_coef = f_coef
         self.s_coef = s_coef
+        self.terms = ['bond', 'angle', 'proper', 'vdW', 'charge']
 
     def get_default_ff_parameters(self, coefs=[0.8, 1.2], deltas=[-0.2, 0.2]):
         """
@@ -70,8 +153,8 @@ class ForceFieldParameters:
         # Loop over LJ, Bond, Angle, Torsion, Improper
         # Loop over molecule
         # Loop over charges
-
         """
+
         params = []
         bounds = []
         constraints = []
@@ -275,7 +358,7 @@ class ForceFieldParameters:
         """
         assert(len(parameters) == len(self.params_init))
         if check: parameters = self.check_validity(parameters)
-        parameters = deepcopy(parameters)
+        parameters = parameters.copy()
         count = 0
         # Bond (k, req)
         for molecule in self.ff.molecules:
@@ -606,44 +689,127 @@ class ForceFieldParameters:
 
 
     def load_parameters(self, filename):
-        if filename.endswith('.json'):
-            with open(filename, 'r') as file:
-                self.parameters_current = json.load(file)
-        elif filename.endswith('.xml'):
-            tree = ET.parse(filename)
-            root = tree.getroot()
-            # Parse XML to parameters_current
+        """
+        Load the parameters from a given xml file
+
+        Args:
+            filename: xml file to store the parameters information
+        """
+        if filename.endswith('.xml'):
+            dics = xml_to_dict_list(filename)[0]
+            parameters = []
+            for term in self.terms:
+                parameters.extend(dics[term].tolist())
+            return np.array(parameters)
         else:
             raise ValueError("Unsupported file format")
-        self.parameters_init = self.parameters_current.copy()
 
 
-    def export_parameters(self, filename):
+    def export_parameters(self, filename='parameters.xml', parameters=None):
         """
-        Export the parameters
+        Export the parameters to the xml file
+
+        Args:
+            filename: xml file to store the parameters information
+            parameters: a numpy array of parameters
         """
-        dic = {}
-        if filename.endswith('.json'):
-            with open(filename, 'w') as file:
-                json.dump(self.parameters_current, file)
-        elif filename.endswith('.xml'):
-            # Convert parameters_current to XML and save
-            pass
-        else:
-            raise ValueError("Unsupported file format")
+        if parameters is None:
+            parameters = self.params_init.copy()
+        opt_dict = self.get_opt_dict(self.terms, parameters=parameters)
+
+        # Export reference data to file
+        if filename.endswith('.xml'):
+            root = ET.Element('library')
+            ref_elem = ET.SubElement(root, 'structure')
+            for key, val in opt_dict.items():
+                child = ET.SubElement(ref_elem, key)
+                if isinstance(val, np.ndarray):
+                    if val.ndim == 2: # Special handling for 2D arrays
+                        val = array_to_string(val)
+                    else:  # For 1D arrays, convert to list
+                        val = val.tolist()
+                child.text = str(val)
+
+            # Use prettify to get a pretty-printed XML string
+            pretty_xml = prettify(root)
+
+            # Write the pretty-printed XML to a file
+            with open(filename, 'w') as f:
+                f.write(pretty_xml)
 
 
     def load_references(self, filename):
-        if filename.endswith(('.json', '.xml', '.db')):
+        ref_dics = []
+        if filename.endswith(('.xml', '.db')):
             # Load reference data from file
-            pass
+            if filename.endswith('.xml'):
+                dics = xml_to_dict_list(filename)
+                for dic in dics:
+                    structure = Atoms(numbers = dic['numbers'],
+                                      positions = dic['position'],
+                                      cell = dic['lattice'],
+                                      pbc = [1, 1, 1])
+                    dic0 = {
+                            'structure': structure,
+                            'energy': dic['energy'],
+                            'forces': dic['forces'],
+                            'stress': dic['stress'],
+                            'replicate': dic['replicate'],
+                            'options': dic['options'],
+                            'tag': dic['tag'],
+                           }
+                    ref_dics.append(dic0)
+            else:
+                pass
         else:
             raise ValueError("Unsupported file format")
 
-    def export_references(self, filename):
-        if filename.endswith(('.json', '.xml', '.db')):
+        return ref_dics
+
+    def export_references(self, ref_dics, filename='reference.xml'):
+        """
+        export the reference configurations to xml or ase.db
+
+        Args:
+            - ref_dics: list of reference configuration in dict format
+            - filename: filename
+        """
+        if filename.endswith(('.xml', '.db')):
             # Export reference data to file
-            pass
+            if filename.endswith('.xml'):
+                root = ET.Element('library')
+                for ref_dic in ref_dics:
+                    ref_elem = ET.SubElement(root, 'structure')
+                    for key, val in ref_dic.items():
+                        if type(val) == Atoms:
+                            lattice = array_to_string(val.cell.array)
+                            position = array_to_string(val.positions)
+                            numbers = str(val.numbers.tolist())
+                            child1 = ET.SubElement(ref_elem, 'lattice')
+                            child1.text = lattice
+                            child2 = ET.SubElement(ref_elem, 'position')
+                            child2.text = position
+                            child3 = ET.SubElement(ref_elem, 'numbers')
+                            child3.text = numbers
+                        else:
+                            child = ET.SubElement(ref_elem, key)
+                            if isinstance(val, np.ndarray):
+                                if val.ndim == 2: # Special handling for 2D arrays
+                                    val = array_to_string(val)
+                                else:  # For 1D arrays, convert to list
+                                    val = val.tolist()
+                            child.text = str(val)
+
+                # Use prettify to get a pretty-printed XML string
+                pretty_xml = prettify(root)
+
+                # Write the pretty-printed XML to a file
+                with open(filename, 'w') as f:
+                    f.write(pretty_xml)
+
+            elif filename.endswith('.db'):
+                # Ase database
+                pass
         else:
             raise ValueError("Unsupported file format")
 
