@@ -841,11 +841,48 @@ class ForceFieldParameters:
         # Compute and return report on multiple references
         pass
 
-    def plot_parameters(self, ax, parameters1, paramters2=None, quantities='bond-1'):
+    def plot_ff_parameters(self, ax, parameters1, parameters2=None, term='bond-1', width = 0.35):
         """
-        plot the
+        plot the parameters in bar plot style
+        If two set of parameters are given, show the comparison
+
+        Args:
+            ax: matplotlib axis
+            parameters1 (1D array): array of full FF parameters
+            parameters2 (1D array): array of full FF parameters
+            quantity (str): e.g. 'bond-1', 'angles-1', 'vdW-1', 'charges'
         """
-        pass
+        term = term.split('-')
+        if len(term) == 1: # applied to charge
+            term, seq = term[0], 0
+        else: # applied for bond/angle/proper/vdW
+            term, seq = term[0], int(term[1])
+        label1 = 'FF1-' + term
+
+        subpara1, _ , _ = self.get_sub_parameters(parameters1, [term])
+        if seq == 0:
+            data1 = subpara1[0]
+        else:
+            data1 = subpara1[0][seq-1::2]
+            label1 += '-' + str(seq)
+        ind = np.arange(len(data1))
+        ax.bar(ind, data1, width, color='b', label=label1)
+
+        if parameters2 is not None:
+            subpara2, _ , _ = self.get_sub_parameters(parameters2, [term])
+            label2 = 'FF2-' + term
+            if seq == 0:
+                data2 = subpara2[0]
+            else:
+                data2 = subpara2[0][seq-1::2]
+                label2 += '-' + str(seq)
+            ax.bar(ind + width, data2, width, color='r', label=label2)
+        if seq < 2:
+            #ax.set_xlabel(term)
+            ax.set_ylabel(term)
+        ax.set_xticks([])
+        ax.legend()
+
 
     def plot_ff_results(self, axes, parameters, ref_dics, offset_opt=None, label='Init'):
         """
