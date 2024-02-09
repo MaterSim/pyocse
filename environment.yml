@@ -12,9 +12,13 @@ dependencies:
   - openff-utilities=0.1.8
   - openff-interchange=0.3.18
   - pyxtal=0.6.2
+  - lammps=2023.8.2.2.0
+  - torch-dftd=0.4.0
   - toml=0.10.2
   - xmltodict=0.13.0
   #Dev tools at github commit
+  - pip:
+    - git+https://github.com/ACEsuit/mace@main
   - black
   - flake8
   - isort

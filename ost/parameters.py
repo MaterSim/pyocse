@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+import ast
 
 import numpy as np
 from scipy.optimize import minimize
@@ -52,16 +53,18 @@ def xml_to_dict_list(filename):
             key = child.tag
             text = child.text.strip()
             # Check if the field should be converted back to an array
-            if key in ['lattice', 'position', 'forces', 'numbers',
+            if key in ['lattice', 'position', 'forces', 'numbers', 'stress',
                        'bond', 'angle', 'proper', 'vdW', 'charge']:
 
                 if text != 'None':
                     #print(text)
                     value = string_to_array(text)
                     #if key == 'position': print(value, value.shape)
-                    if key == 'numbers': print(value, value.shape)
+                    #if key == 'stress': print(value, value.shape)
                 else:
                     value = None
+            elif key in ['options']:
+                value = ast.literal_eval(text) #print(value)
             else:
                 # Attempt to convert numeric values back to float/int, fall back to string
                 try:
@@ -538,11 +541,13 @@ class ForceFieldParameters:
         for ref_dic in ref_dics:
             struc, options = ref_dic['structure'], ref_dic['options']
             ff_dic = self.evaluate_ff_single(struc, options)
+            #print(options)
             if options[0]:
                 e_diff = ff_dic['energy'] - ref_dic['energy']
                 e_diff += ref_dic['replicate'] * e_offset
                 total_obj += e_diff ** 2
             if not E_only and options[1]:
+                #print('debug', options, options[0], options[1], options[2])
                 f_diff = ff_dic['forces'] - ref_dic['forces']
                 total_obj += self.f_coef * np.sum(f_diff ** 2)
             if not E_only and options[2]:
@@ -825,13 +830,41 @@ class ForceFieldParameters:
         else:
             raise ValueError("Unsupported file format")
 
-    def get_score_on_single_reference(self, ref_structure, reference_criteria):
-        # Calculate score for a single reference structure
-        pass
+    def evaluate_multi_references(self, ref_dics, parameters, offset_opt=None):
+        """
+        Calculate scores for multiple reference structures
+        """
+        self.update_ff_parameters(parameters)
+        if offset_opt is None: offset_opt = self.optimize_offset(ref_dics)
 
-    def get_scores_on_multi_references(self, ref_structures, ref_criteria):
-        # Calculate scores for multiple reference structures
-        pass
+        ff_eng, ff_force, ff_stress = [], [], []
+        ref_eng, ref_force, ref_stress = [], [], []
+        for ref_dic in ref_dics:
+            ff_dic = self.evaluate_ff_single(ref_dic['structure'], options=ref_dic['options'])
+            ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
+            ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
+            if ref_dic['options'][1]:
+                ff_force.extend(ff_dic['forces'].tolist())
+                ref_force.extend(ref_dic['forces'].tolist())
+            if ref_dic['options'][2]:
+                ff_stress.extend(ff_dic['stress'].tolist())
+                ref_stress.extend(ref_dic['stress'].tolist())
+        ff_eng = np.array(ff_eng)
+        ff_force = np.array(ff_force)
+        ff_stress = np.array(ff_stress)
+        ref_eng = np.array(ref_eng)
+        ref_force = np.array(ref_force)
+        ref_stress = np.array(ref_stress)
+
+        mse_eng = np.sqrt(np.sum((ff_eng-ref_eng)**2))/len(ff_eng)
+        mse_for = np.sqrt(np.sum((ff_force-ref_force)**2))/len(ff_force)
+        mse_str = np.sqrt(np.sum((ff_stress-ref_stress)**2))/len(ff_stress)
+
+        ff_values = (ff_eng, ff_force, ff_stress)
+        ref_values = (ref_eng, ref_force, ref_stress)
+        rmse_values = (mse_eng, mse_for, mse_str)
+        return ff_values, ref_values, rmse_values
+       
 
     def get_report_single_reference(self, ref_structure):
         # Compute and return report for a single reference structure
@@ -897,34 +930,39 @@ class ForceFieldParameters:
         """
 
         # Set up the ff engine
-        self.update_ff_parameters(parameters)
-        if offset_opt is None: offset_opt = self.optimize_offset(ref_dics)
+        #self.update_ff_parameters(parameters)
+        #if offset_opt is None: offset_opt = self.optimize_offset(ref_dics)
 
-        ff_eng, ff_force, ff_stress = [], [], []
-        ref_eng, ref_force, ref_stress = [], [], []
-        for ref_dic in ref_dics:
-            ff_dic = self.evaluate_ff_single(ref_dic['structure'], options=ref_dic['options'])
-            ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
-            ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
-            if ref_dic['options'][1]:
-                ff_force.extend(ff_dic['forces'].tolist())
-                ref_force.extend(ref_dic['forces'].tolist())
-            if ref_dic['options'][2]:
-                ff_stress.extend(ff_dic['stress'].tolist())
-                ref_stress.extend(ref_dic['stress'].tolist())
-        ff_eng = np.array(ff_eng)
-        ff_force = np.array(ff_force)
-        ff_stress = np.array(ff_stress)
-        ref_eng = np.array(ref_eng)
-        ref_force = np.array(ref_force)
-        ref_stress = np.array(ref_stress)
+        #ff_eng, ff_force, ff_stress = [], [], []
+        #ref_eng, ref_force, ref_stress = [], [], []
+        #for ref_dic in ref_dics:
+        #    ff_dic = self.evaluate_ff_single(ref_dic['structure'], options=ref_dic['options'])
+        #    ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
+        #    ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
+        #    if ref_dic['options'][1]:
+        #        ff_force.extend(ff_dic['forces'].tolist())
+        #        ref_force.extend(ref_dic['forces'].tolist())
+        #    if ref_dic['options'][2]:
+        #        ff_stress.extend(ff_dic['stress'].tolist())
+        #        ref_stress.extend(ref_dic['stress'].tolist())
+        #ff_eng = np.array(ff_eng)
+        #ff_force = np.array(ff_force)
+        #ff_stress = np.array(ff_stress)
+        #ref_eng = np.array(ref_eng)
+        #ref_force = np.array(ref_force)
+        #ref_stress = np.array(ref_stress)
 
-        mse_eng = np.sqrt(np.sum((ff_eng-ref_eng)**2))
-        mse_for = np.sqrt(np.sum((ff_force-ref_force)**2))
-        mse_str = np.sqrt(np.sum((ff_stress-ref_stress)**2))
-        label1 = 'Energy {:s}: {:.2f}'.format(label, mse_eng)
-        label2 = 'Forces {:s}: {:.2f}'.format(label, mse_for)
-        label3 = 'Stress {:s}: {:.2f}'.format(label, mse_str)
+        #mse_eng = np.sqrt(np.sum((ff_eng-ref_eng)**2))/len(ff_eng)
+        #mse_for = np.sqrt(np.sum((ff_force-ref_force)**2))/len(ff_force)
+        #mse_str = np.sqrt(np.sum((ff_stress-ref_stress)**2))/len(ff_stress)
+        ff_values, ref_values, rmse_values = self.evaluate_multi_references(ref_dics, parameters, offset_opt)
+        (ff_eng, ff_force, ff_stress) = ff_values 
+        (ref_eng, ref_force, ref_stress) = ref_values 
+        (mse_eng, mse_for, mse_str) = rmse_values 
+ 
+        label1 = 'Energy {:s}: {:.3f}'.format(label, mse_eng); print('RMSE (kcal/mol)', label1)
+        label2 = 'Forces {:s}: {:.3f}'.format(label, mse_for); print('RMSE (eV/A)', label2)
+        label3 = 'Stress {:s}: {:.3f}'.format(label, mse_str); print('RMSE (GPa)', label3)
         axes[0].scatter(ref_eng, ff_eng, label=label1)
         axes[1].scatter(ref_force, ff_force, label=label2)
         axes[2].scatter(ref_stress, ff_stress, label=label3)
