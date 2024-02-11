@@ -19,6 +19,7 @@ db = database("../../../HT-OCSP/benchmarks/Si.db")
 xtal = db.get_pyxtal("WAHJEW")
 smiles = [mol.smile for mol in xtal.molecules]
 assert smiles[0] is not None
+smi = smiles[0]
 
 # Initialize the param instance
 params = ForceFieldParameters(smiles, style='openff', f_coef=0.1); print(params)
@@ -32,7 +33,6 @@ else:
 if os.path.exists(reference_file):
     ref_dics = params.load_references(reference_file)
 else:
-    smi = smiles[0]
     strs, engs = parse_cif('Ranked-pyxtal-WAHJEW.cif', eng=True)
     ids = np.argsort(engs)
     ref_dics = []
@@ -54,7 +54,7 @@ if os.path.exists(parameters_opt_file):
 else:
     parameters_opt = None
 
-for i in range(3):
+for i in range(1):
     for data in [(['bond'], 250),
                  (['angle'], 250),
                  (['bond', 'angle'], 250),
@@ -64,8 +64,8 @@ for i in range(3):
                  #(['proper', 'vdW'], 100),
                  #(['charge'], 100),
                  #(['vdW', 'charge'], 100),
-                 #(['proper', 'vdW', 'charge'], 100),
-                 #(['bond', 'angle', 'proper', 'vdW', 'charge'], 100),
+                 (['proper', 'vdW', 'charge'], 150),
+                 (['bond', 'angle', 'proper', 'vdW', 'charge'], 100),
                 ]:
         (terms, steps) = data
         t0 = time()
@@ -74,9 +74,10 @@ for i in range(3):
 
         # Conduct actual optimization
         opt_dict = params.get_opt_dict(terms, 
-                                       parameters=parameters_opt)
+                                       None,
+                                       parameters_opt)
         print('Init values\n', opt_dict)
-        x, fun, values = params.optimize(ref_dics,
+        x, fun, values, it = params.optimize(ref_dics,
                                          offset_opt,
                                          opt_dict,
                                          parameters_opt,
@@ -85,32 +86,34 @@ for i in range(3):
         parameters_opt = params.set_sub_parameters(values, 
                                                    terms, 
                                                    parameters_opt)
-        print('Opt_obj {:.2f} min '.format((time()-t0)/60), terms, fun)
+        t = (time()-t0)/60
+        print('Opt_obj {:.2f} min '.format(t), terms, fun, it)
         print('Opt_solution\n', x)
         print('Opt_values\n', values)
         if os.path.exists('lmp.log'): os.remove('lmp.log')
 
-# Save the Final parameters
-params.export_parameters(parameters_opt_file, parameters_opt)
-
-
-# Results analysis
-fig, axes = plt.subplots(2, 3, figsize=(16, 8))
-params.plot_ff_results(axes[0], parameters0, ref_dics, label='Init')
-params.plot_ff_results(axes[1], parameters_opt, ref_dics, label='Opt')
-plt.savefig('Results.png')
-print("export results in Results.png\n")
-
-grid_size = (5, 2)
-fig = plt.figure(figsize=(10, 16))
-for i, term in enumerate(['bond', 'angle', 'proper', 'vdW', 'charge']):
-    if term == 'charge':
-        ax = plt.subplot2grid(grid_size, (i, 0), colspan=2, fig=fig)
-        params.plot_ff_parameters(ax, parameters0, parameters_opt, term)
-    else:
-        ax1 = plt.subplot2grid(grid_size, (i, 0), fig=fig)
-        ax2 = plt.subplot2grid(grid_size, (i, 1), fig=fig)
-        params.plot_ff_parameters(ax1, parameters0, parameters_opt, term+'-1')
-        params.plot_ff_parameters(ax2, parameters0, parameters_opt, term+'-2')
-plt.savefig('parameters.png')
-print("export results in parameters.png\n")
+    # Save the Final parameters
+    params.export_parameters(parameters_opt_file, parameters_opt)
+    
+    
+    # Results analysis
+    fig, axes = plt.subplots(2, 3, figsize=(16, 8))
+    params.plot_ff_results(axes[0], parameters0, ref_dics, label='Init')
+    params.plot_ff_results(axes[1], parameters_opt, ref_dics, label='Opt')
+    plt.savefig('Results.png')
+    print("export results in Results.png\n")
+    
+    grid_size = (5, 2)
+    fig = plt.figure(figsize=(10, 16))
+    for i, term in enumerate(['bond', 'angle', 'proper', 'vdW', 'charge']):
+        if term == 'charge':
+            ax = plt.subplot2grid(grid_size, (i, 0), colspan=2, fig=fig)
+            params.plot_ff_parameters(ax, parameters0, parameters_opt, term)
+        else:
+            ax1 = plt.subplot2grid(grid_size, (i, 0), fig=fig)
+            ax2 = plt.subplot2grid(grid_size, (i, 1), fig=fig)
+            params.plot_ff_parameters(ax1, parameters0, parameters_opt, term+'-1')
+            params.plot_ff_parameters(ax2, parameters0, parameters_opt, term+'-2')
+    plt.title(smi)
+    plt.savefig('parameters.png')
+    print("export results in parameters.png\n")

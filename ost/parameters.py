@@ -358,60 +358,7 @@ class ForceFieldParameters:
         assert(len(parameters) == len(self.params_init))
         if check: parameters = self.check_validity(parameters)
         parameters = parameters.copy()
-        count = 0
-        # Bond (k, req)
-        for molecule in self.ff.molecules:
-            for bond_type in molecule.bond_types: #.keys():
-                k = parameters[count]
-                req = parameters[count + 1]
-                bond_type.k = k
-                bond_type.req = req
-                count += 2
-        # Angle (k, theteq)
-        for molecule in self.ff.molecules:
-            for angle_type in molecule.angle_types: #.keys():
-                k = parameters[count]
-                theteq = parameters[count + 1]
-                angle_type.k = k
-                angle_type.theteq = theteq
-                count += 2
-
-        # Proper (phi_k) # per=2, phase=180.000,  scee=1.200, scnb=2.000
-        for molecule in self.ff.molecules:
-            for dihedral_type in molecule.dihedral_types:
-                phi_k = parameters[count]
-                dihedral_type.phi_k = phi_k
-                count += 1
-
-        # nonbond vdW parameters (rmin, epsilon)
-        for molecule in self.ff.molecules:
-            ps = molecule.get_parameterset_with_resname_as_prefix()
-            for key in ps.atom_types.keys():
-                rmin = parameters[count]
-                epsilon = parameters[count + 1]
-                count += 2
-                # https://parmed.github.io/ParmEd/html/_modules/parmed/parameters.html#ParameterSet.from_structure
-                for at in molecule.atoms:
-                    label = at.residue.name + at.type
-                    if label == key:
-                        at.atom_type.rmin = rmin
-                        at.atom_type.rmin_14 = rmin
-                        at.atom_type.epsilon = epsilon
-                        at.atom_type.epsilon_14 = epsilon
-                        break
-                #at.epsilon = epsilon
-                #at.rmin = rmin
-
-        # nonbond charges
-        #print('updating', parameters[count:])
-        for molecule in self.ff.molecules:
-            for at in molecule.atoms:
-                chg = parameters[count]
-                at.charge = chg
-                count += 1
-        sub_params, _, _ = self.get_sub_parameters(self.params_init, ['vdW'])
-        #if sub_params[0][0] != 1.9080000000152688:
-        #    print('Debug', sub_params); import sys; sys.exit()
+        self.ff.update_parameters(parameters)
 
     def __str__(self):
         s = "\n------Force Field Parameters------\n"
@@ -702,7 +649,7 @@ class ForceFieldParameters:
         if charges is not None:
             values.append(res.x[-1]*charges)
 
-        return res.x, res.fun, values
+        return res.x, res.fun, values, res.nit
 
 
     def load_parameters(self, filename):
@@ -960,7 +907,7 @@ class ForceFieldParameters:
         (ref_eng, ref_force, ref_stress) = ref_values 
         (mse_eng, mse_for, mse_str) = rmse_values 
  
-        label1 = 'Energy {:s}: {:.3f}'.format(label, mse_eng); print('RMSE (kcal/mol)', label1)
+        label1 = 'Energy {:s}: {:.3f}'.format(label, mse_eng); print('RMSE (eV/molecule)', label1)
         label2 = 'Forces {:s}: {:.3f}'.format(label, mse_for); print('RMSE (eV/A)', label2)
         label3 = 'Stress {:s}: {:.3f}'.format(label, mse_str); print('RMSE (GPa)', label3)
         axes[0].scatter(ref_eng, ff_eng, label=label1)

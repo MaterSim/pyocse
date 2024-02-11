@@ -105,6 +105,61 @@ class forcefield:
         return atoms
 
 
+    def update_parameters(self, parameters):
+        """
+        update the forcefield parameters:
+
+        Args:
+            parameters: a 1D array of FF parameters
+        """
+        count = 0
+        # Bond (k, req)
+        for molecule in self.molecules:
+            for bond_type in molecule.bond_types: #.keys():
+                k = parameters[count]
+                req = parameters[count + 1]
+                bond_type.k = k
+                bond_type.req = req
+                count += 2
+        # Angle (k, theteq)
+        for molecule in self.molecules:
+            for angle_type in molecule.angle_types: #.keys():
+                k = parameters[count]
+                theteq = parameters[count + 1]
+                angle_type.k = k
+                angle_type.theteq = theteq
+                count += 2
+
+        # Proper (phi_k) # per=2, phase=180.000,  scee=1.200, scnb=2.000
+        for molecule in self.molecules:
+            for dihedral_type in molecule.dihedral_types:
+                phi_k = parameters[count]
+                dihedral_type.phi_k = phi_k
+                count += 1
+
+        # nonbond vdW parameters (rmin, epsilon)
+        for molecule in self.molecules:
+            ps = molecule.get_parameterset_with_resname_as_prefix()
+            for key in ps.atom_types.keys():
+                rmin = parameters[count]
+                epsilon = parameters[count + 1]
+                count += 2
+                for at in molecule.atoms:
+                    label = at.residue.name + at.type
+                    if label == key:
+                        at.atom_type.rmin = rmin
+                        at.atom_type.rmin_14 = rmin
+                        at.atom_type.epsilon = epsilon
+                        at.atom_type.epsilon_14 = epsilon
+                        break
+
+        # nonbond charges
+        for molecule in self.ff.molecules:
+            for at in molecule.atoms:
+                chg = parameters[count]
+                at.charge = chg
+                count += 1
+
 
 def get_openff(smiles, chargemethod, ff_name="openff-2.0.0.offxml"):
     """
