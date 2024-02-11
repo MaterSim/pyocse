@@ -55,7 +55,7 @@ else:
     parameters_opt = None
 
 for i in range(1):
-    for data in [(['bond'], 250),
+    for data in [(['bond'], 250),#0),
                  (['angle'], 250),
                  (['bond', 'angle'], 250),
                  #(['proper'], 150),
