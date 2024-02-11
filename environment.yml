@@ -11,7 +11,7 @@ dependencies:
   - openff-units=0.2.0
   - openff-utilities=0.1.8
   - openff-interchange=0.3.18
-  - pyxtal=0.6.2
+  - pyxtal=0.6.3
   - lammps=2023.8.2.2.0
   - torch-dftd=0.4.0
   - toml=0.10.2

@@ -54,6 +54,14 @@ class CHARMMStructure(ParmEdStructure):
 
     _progname = "CHARMM"
 
+    @property
+    def atomtypes_with_resname(self):
+        if not hasattr(self, "_atomtype_with_resname"):
+            ps = self.get_parameterset_with_resname_as_prefix()
+            self._atomtypes_with_resname = ps.atom_types
+        return self._atomtypes_with_resname
+
+
     def write_inp(self, of, base: str):
 
         io = StringIO()
@@ -133,14 +141,15 @@ CUTNB {self.cutoff_ljout + self.cutoff_skin}  CTOFNB {self.cutoff_ljout}  CTONNB
 !             (kcal/mol)    (A)
 """
         )
-        for (k, at) in self.parameterset.atom_types.items():
+        #for (k, at) in self.parameterset.atom_types.items():
+        for (k, at) in self.atomtypes_with_resname.items():
             fmt = "%2s %9.3f %9.5f %9.5f %9.5f %9.5f %9.5f\n"
             heps = -at.epsilon * 0.5
             heps = accurate_round(-0.5 * at.epsilon)
             if at.rmin == 0 or at.epsilon == 0:
-                of.write(fmt % (at.name, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
+                of.write(fmt % (at.name[3:], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
             else:
-                of.write(fmt % (at.name, 0.0, -at.epsilon, at.rmin, 0.0, heps, at.rmin))
+                of.write(fmt % (at.name[3:], 0.0, -at.epsilon, at.rmin, 0.0, heps, at.rmin))
         of.write("\nEND\n")
 
     def get_atom_info(self):

@@ -151,10 +151,10 @@ class forcefield:
                         at.atom_type.rmin_14 = rmin
                         at.atom_type.epsilon = epsilon
                         at.atom_type.epsilon_14 = epsilon
-                        break
+                        #break
 
         # nonbond charges
-        for molecule in self.ff.molecules:
+        for molecule in self.molecules:
             for at in molecule.atoms:
                 chg = parameters[count]
                 at.charge = chg
