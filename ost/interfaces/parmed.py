@@ -42,7 +42,7 @@ class ParmEdStructure(Structure):
         # http://docs.openmm.org/latest/userguide/theory/02_standard_forces.html
         return (-np.log(self.ewald_error_tolerance * 2.0)) ** 0.5 / self.cutoff_coul
 
-    @property
+    #@property
     def fftgrid(self):
         """
         determine the grid used for
@@ -128,8 +128,8 @@ class ParmEdStructure(Structure):
 
     @classmethod
     def from_structure(cls, structure):
-        inst = structure.copy(cls)
-        return inst
+        return structure.copy(cls)
+        #return inst
 
     @property
     def parameterset(self):

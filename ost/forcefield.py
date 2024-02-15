@@ -3,7 +3,6 @@ from openff.interchange import Interchange
 from openff.toolkit.topology import Molecule, Topology
 from openff.toolkit.typing.engines.smirnoff import ForceField
 from openff.units import unit
-
 from ost.interchange_parmed import _to_parmed
 from ost.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
 from ost.interfaces.rdkit import smiles_to_ase_and_pmg
@@ -89,6 +88,28 @@ class forcefield:
         atoms.set_pbc(pbc)
         atoms.title = '.'.join(self.smiles)
         return atoms
+
+    def set_lammps_in(self, lmp_in='lmp.in', lmp_dat='lmp.dat'):
+        """
+        Add the lammps ff information into the give atoms object
+
+        Args:
+            Atoms: the ase atoms following the atomic order in self.molecules
+
+        Return:
+            Atoms with lammps ff information
+        """
+        # first adjust the cell into lammps format
+        pbc = [True, True, True]
+        if len(self.molecules) == 1:
+            atoms = self.molecules[0].to_ase()
+            pd_struc = self.molecules[0].copy(cls=ParmEdStructure)
+            pd_struc.update(atoms)
+            atoms = LAMMPSStructure.from_structure(pd_struc)
+        atoms.set_pbc(pbc)
+        atoms.title = '.'.join(self.smiles)
+        with open(lmp_in, 'w') as of:
+            atoms._write_input(of, lmp_dat)
 
     def reset_lammps_cell(self, atoms0):
         """

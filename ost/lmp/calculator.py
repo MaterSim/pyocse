@@ -171,31 +171,39 @@ class LAMMPSCalculatorMixIn:
         force = (kcal/mol)/Angstrom
         pressure = atmospheres
         """
-        precmds = [
-            "fix ensemble all nve",
-            "variable pxx equal pxx",
-            "variable pyy equal pyy",
-            "variable pzz equal pzz",
-            "variable pyz equal pyz",
-            "variable pxz equal pxz",
-            "variable pxy equal pxy",
-            "variable fx atom fx",
-            "variable fy atom fz",
-            "variable fz atom fz",
-        ]
-        postcmds = ["unfix ensemble"]
+        #precmds = [
+        #    "fix ensemble all nve",
+        #    "variable pxx equal pxx",
+        #    "variable pyy equal pyy",
+        #    "variable pzz equal pzz",
+        #    "variable pyz equal pyz",
+        #    "variable pxz equal pxz",
+        #    "variable pxy equal pxy",
+        #    "variable fx atom fx",
+        #    "variable fy atom fz",
+        #    "variable fz atom fz",
+        #]
+        #for cmd in precmds:
+        #    self.lmp.command(cmd)
+        #self.lmp.run(0)
 
-        self._easy_run(0, precmds, postcmds)
+        #self._easy_run(0, precmds, postcmds)
+        #from time import time; t0 = time()
+        self.lmp.run(0)
+        #t1 = time(); print('stress', t1-t0)
         thermo = self.lmp.last_run[-1]
         energy = float(thermo.TotEng[-1]) * units.kcal/units.mol
         stress = np.zeros(6)
         stress_vars = ['pxx', 'pyy', 'pzz', 'pyz', 'pxz', 'pxy']
-
         for i, var in enumerate(stress_vars):
             stress[i] = self.lmp.variables[var].value
+        #t1 = time(); print('stress', t1-t0)
+
         fx = np.frombuffer(self.lmp.variables['fx'].value)
         fy = np.frombuffer(self.lmp.variables['fy'].value)
         fz = np.frombuffer(self.lmp.variables['fz'].value)
+        #t2 = time(); print('forces', t2-t1)
+
         stress = -stress * 101325 * units.Pascal
         forces = np.vstack((fx, fy, fz)).T * units.kcal/units.mol
 
@@ -574,11 +582,13 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
         nproc=1,
         lammps_name=None,
         lmp_instance=None,
+        lmp_in=None,
+        lmp_dat=None,
+        skip_dump = True,
         *args,
         **lwargs,
     ):
-        from lammps import PyLammps  # , get_thermo_data
-
+        
         self.struc = struc
         self.base = base
         cmdargs = ["-screen", "none", "-log", f"{base}.log", "-nocite"]
@@ -590,37 +600,47 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
         if self.nproc > 1:
             cmdargs += ["-sf", "omp"]
         os.environ["OMP_NUM_THREADS"] = str(nproc)
-        if lammps_name:
-            binary_name = which_lmp("lmp_" + lammps_name)
-        else:
-            binary_name = which_lmp()
-        #print("binary name: ", binary_name)
-        if binary_name == "lmp":
-            lammps_name = ""
-        else:
-            lammps_name = None
-            # lammps_name = binary_name.split("lmp_")[-1]
-        #
-        if lmp_instance:
+
+        # Set up the lammps instance
+        if lmp_instance is not None:
             self.lmp = lmp_instance
             self.lmp.command('clear')
         else:
+            from lammps import PyLammps  # , get_thermo_data
+            if lammps_name:
+                binary_name = which_lmp("lmp_" + lammps_name)
+            else:
+                binary_name = which_lmp()
+            #print("binary name: ", binary_name)
+            if binary_name == "lmp":
+                lammps_name = ""
+            else:
+                lammps_name = None
+                # lammps_name = binary_name.split("lmp_")[-1]
             self.lmp = PyLammps(name=lammps_name, cmdargs=cmdargs, *args, **lwargs)
 
-        struc.write_lammps(self.lin, self.ldat)#; print(os.system('grep pair_coeff '+ self.lin))
+        #from time import time; t0 = time()
+        if lmp_in is None:
+            struc.write_lammps(fin=self.lin, fdat=self.ldat, lmp_dat=lmp_dat)
+        else:
+            struc.write_lammps(fin=self.lin, fdat=self.ldat, fin_template=lmp_in, lmp_dat=lmp_dat)
+
+        #t1=time(); print("lmp_instance", t1-t0)
         self.restart = False
-        if not os.path.exists(dumpdir):
-            os.mkdir(dumpdir)
         self.initialize()
-        self.compute_and_dump_settings()
+        if not skip_dump: 
+            if not os.path.exists(dumpdir): os.mkdir(dumpdir)
+            self.compute_and_dump_settings()
+        #t2=time(); print("lmp_initialize", t2-t1)
 
     def initialize(self):
-        lines = open(self.lin).readlines()
-        for line0 in lines:
-            line = line0.strip()
-            if len(line) == 0 or line[0] == "#":
-                continue
-            self.lmp.command(line)
+        #lines = open(self.lin).readlines()
+        #for line0 in lines:
+        #    line = line0.strip()
+        #    if len(line) == 0 or line[0] == "#":
+        #        continue
+        #    self.lmp.command(line)
+        self.lmp.file(self.lin)
 
     def compute_and_dump_settings(self, thermo=500, dump=1000):
         """
