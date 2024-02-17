@@ -36,7 +36,7 @@ class ParmEdStructure(Structure):
         self.cutoff_ljin = cutoff_ljin
         self.cutoff_ljout = cutoff_ljout
 
-    @property
+    #@property
     def gewald(self):
         # from openmm definition
         # http://docs.openmm.org/latest/userguide/theory/02_standard_forces.html
@@ -172,6 +172,14 @@ class ParmEdStructure(Structure):
         self.cutoff_ljout = self.DEFAULT_CUTOFF_LJOUT
         self.ewald_error_tolerance = self.DEFAULT_EWALD_ERROR_TOLERANCE
         self._ffdic = None
+
+    def complete(self):
+        self.cutoff_skin = self.DEFAULT_CUTOFF_SKIN
+        self.cutoff_coul = self.DEFAULT_CUTOFF_COUL
+        self.cutoff_ljin = self.DEFAULT_CUTOFF_LJIN
+        self.cutoff_ljout = self.DEFAULT_CUTOFF_LJOUT
+        self.ewald_error_tolerance = self.DEFAULT_EWALD_ERROR_TOLERANCE
+        
 
     # def __iadd__(self, other):
     #    new = super().__iadd__(other)

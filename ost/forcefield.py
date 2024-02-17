@@ -89,7 +89,7 @@ class forcefield:
         atoms.title = '.'.join(self.smiles)
         return atoms
 
-    def set_lammps_in(self, lmp_in='lmp.in', lmp_dat='lmp.dat'):
+    def get_lammps_in(self, lmp_dat='lmp.dat'):
         """
         Add the lammps ff information into the give atoms object
 
@@ -108,8 +108,8 @@ class forcefield:
             atoms = LAMMPSStructure.from_structure(pd_struc)
         atoms.set_pbc(pbc)
         atoms.title = '.'.join(self.smiles)
-        with open(lmp_in, 'w') as of:
-            atoms._write_input(of, lmp_dat)
+            
+        return atoms._write_input(lmp_dat)
 
     def reset_lammps_cell(self, atoms0):
         """

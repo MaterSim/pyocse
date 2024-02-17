@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import ast
-import time
+import os, time
 
 import numpy as np
 from scipy.optimize import minimize
@@ -15,6 +15,8 @@ from ost.forcefield import forcefield
 from ost.lmp import LAMMPSCalculator
 from mace.calculators import mace_mp
 from lammps import PyLammps  # , get_thermo_data
+
+#import multiprocessing as mp
 
 def timeit(method):
     def timed(*args, **kw):
@@ -67,7 +69,7 @@ def xml_to_dict_list(filename):
             text = child.text.strip()
             # Check if the field should be converted back to an array
             if key in ['lattice', 'position', 'forces', 'numbers', 'stress',
-                       'bond', 'angle', 'proper', 'vdW', 'charge']:
+                       'bond', 'angle', 'proper', 'vdW', 'charge', 'offset']:
 
                 if text != 'None':
                     #print(text)
@@ -102,6 +104,44 @@ def prettify(elem):
     reparsed = minidom.parseString(rough_string)
     return reparsed.toprettyxml(indent="  ")
 
+
+def get_lmp_efs(lmp_struc, lmp_in, lmp_dat):
+    if not hasattr(lmp_struc, 'ewald_error_tolerance'): 
+        #setattr(lmp_struc, 'ewald_error_tolerance', lmp_struc.DEFAULT_EWALD_ERROR_TOLERANCE)
+        lmp_struc.complete()
+    #print('get_lmp_efs', len(dir(lmp_struc)), hasattr(lmp_struc, 'ewald_error_tolerance'))
+    calc = LAMMPSCalculator(lmp_struc, lmp_in=lmp_in, lmp_dat=lmp_dat)
+    return calc.express_evaluation()
+
+def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, natoms_per_unit, f_coef, s_coef, dir_name):
+    """
+    parallel version
+    """
+    pwd = os.getcwd()
+    result = 0
+    os.chdir(dir_name)
+
+    for ref_dic, lmp_struc, lmp_dat in zip(ref_dics, lmp_strucs, lmp_dats):
+        structure = ref_dic['structure']
+        options = ref_dic['options']
+        replicate = len(structure)/natoms_per_unit
+        lmp_struc.box = structure.cell.cellpar()
+        lmp_struc.coordinates = structure.get_positions()
+        eng, force, stress = get_lmp_efs(lmp_struc, lmp_in, lmp_dat)
+        if options[0]: # Energy
+            e_diff = eng - ref_dic['energy'] + replicate * e_offset 
+            result += e_diff ** 2
+
+        if options[1]: # forces
+            f_diff = force -ref_dic['forces']
+            result += f_coef * np.sum(f_diff ** 2)
+        if options[2]:
+            s_diff = stress - ref_dic['stress']
+            result += s_coef * np.sum(s_diff ** 2)
+    os.chdir(pwd)
+    #print(result)
+    return result
+
 """
 A class to handle the optimization of force field parameters
 for molecular simulation.
@@ -117,6 +157,7 @@ class ForceFieldParameters:
                  ref_evaluator = 'mace',
                  f_coef = 0.1,
                  s_coef = 1.0,
+                 ncpu = 1,
                  device = 'cpu'):
         """
         Initialize the parameters
@@ -135,9 +176,9 @@ class ForceFieldParameters:
         # only works for 1:1 ratio cocrystal for now
         self.natoms_per_unit = sum([len(mol.atoms) for mol in self.ff.molecules])
         params_init, constraints, bounds = self.get_default_ff_parameters()
-        self._params_init = params_init
-        self._constraints = constraints
-        self._bounds = bounds
+        self.params_init = params_init
+        self.constraints = constraints
+        self.bounds = bounds
 
         self.parameters_current = []
         self.reference_data = []
@@ -149,14 +190,16 @@ class ForceFieldParameters:
                                       default_dtype = "float64",
                                       device = device)
         if ff_evaluator == 'lammps':
-            cmdargs = ["-screen", "none", "-log", "lmp.log", "-nocite"]
-            self.lmp = PyLammps(name=None, cmdargs=cmdargs)
+            # Using one lmp instance may cause long time delay at the end
+            #cmdargs = ["-screen", "none", "-log", "lmp.log", "-nocite"]
+            #self.lmp = PyLammps(name=None, cmdargs=cmdargs)
             # set up the lammps template
             self.ase_templates = {}
             self.lmp_dat = {}
         self.f_coef = f_coef
         self.s_coef = s_coef
-        self.terms = ['bond', 'angle', 'proper', 'vdW', 'charge']
+        self.terms = ['bond', 'angle', 'proper', 'vdW', 'charge', 'offset']
+        self.ncpu = ncpu
 
     def get_default_ff_parameters(self, coefs=[0.8, 1.2], deltas=[-0.2, 0.2]):
         """
@@ -238,30 +281,21 @@ class ForceFieldParameters:
         self.N_improper = N_improper
         self.N_vdW = N_vdW
         self.N_charges = N_charges
+        # This is for the offset
+        params.append(0)
 
         #self._params_init = np.array(params)
         #self._constraints = constraints
         #self._bounds = bounds
         return params, constraints, bounds
 
-    @property
-    def params_init(self):
-        return self._params_init
-
-    @property
-    def constraints(self):
-        return self._constraints
-
-    @property
-    def bounds(self):
-        return self._bounds
-
     def check_validity(self, parameters):
         """
         Check if the input FF parameters are within the bound
         and satisfy the constaint
         """
-        for i, _parameter in enumerate(parameters):
+        # last parameter is for the offset
+        for i, _parameter in enumerate(parameters[:-1]):
             (lb, ub) = self.bounds[i]
             if _parameter >= ub:
                 _parameter = ub
@@ -313,11 +347,18 @@ class ForceFieldParameters:
                 id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW
                 id2 = id1 + self.N_charges
                 do_charge = True
+            elif term == 'offset':
+                id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW + self.N_charges
+                id2 = id1 + 1
+
+            #if term != 'offset':
             sub_paras.append(parameters[id1:id2])
+
             if term != 'charge':
                 sub_bounds.append(self.bounds[id1:id2])
             else:
                 sub_bounds.append([(0.5, 2.0)])
+
             count += id2 - id1
             if do_charge:
                 shift = self.N_bond + self.N_angle + self.N_proper + self.N_vdW
@@ -359,6 +400,9 @@ class ForceFieldParameters:
                 id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW
                 id2 = id1 + self.N_charges
                 sub_constraints = self.constraints
+            elif term == 'offset':
+                id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW + self.N_charges
+                id2 = id1 + 1
             parameters[id1:id2] = sub_para
 
         return parameters
@@ -372,8 +416,8 @@ class ForceFieldParameters:
 
         """
         assert(len(parameters) == len(self.params_init))
-        if check: parameters = self.check_validity(parameters)
-        parameters = parameters.copy()
+        #if check: parameters = self.check_validity(parameters)
+        #parameters = parameters.copy()
         self.ff.update_parameters(parameters)
         # reset the ase_lammps to empty
         self.ase_templates = {}
@@ -391,6 +435,7 @@ class ForceFieldParameters:
         s += "Constraints: {:3d}\n".format(len(self.constraints))
         s += "FF_code:    {:s}\n".format(self.ff_evaluator)
         s += "Ref_code:   {:s}\n".format(self.ref_evaluator)
+        s += "N_CPU:       {:3d}\n".format(self.ncpu)
         return s
 
     def __repr__(self):
@@ -472,8 +517,42 @@ class ForceFieldParameters:
         structure.set_calculator() # reset calculator to None
         return ref_dic
 
+    def get_lmp_inputs_from_ref_dics(self, ref_dics):
+        lmp_strucs, lmp_dats = [], []
+        for ref_dic in ref_dics:
+            structure = ref_dic['structure']
+            lmp_struc, lmp_dat = self.get_lmp_input_from_structure(structure)
+            #print(lmp_struc.box)
+            lmp_strucs.append(lmp_struc)
+            lmp_dats.append(lmp_dat)
+        #print('Final'); print(lmp_strucs[0].box); print(lmp_strucs[-1].box); import sys; sys.exit()
+        return lmp_strucs, lmp_dats
+
+    def get_lmp_input_from_structure(self, structure):
+
+        replicate = len(structure)/self.natoms_per_unit
+        if replicate in self.ase_templates.keys():
+            lmp_struc = self.ase_templates[replicate]
+            # update the positions and cell vectors
+            #structure = self.ff.reset_lammps_cell(structure)
+            #lmp_struc.coordinates = structure.get_positions()
+            #lmp_struc.box = structure.cell.cellpar()
+        else:
+            lmp_struc = self.ff.get_ase_lammps(structure)
+            dat_head = lmp_struc._write_dat_head()
+            dat_prm = lmp_struc._write_dat_parameters()
+            dat_connect, _, _, _ = lmp_struc._write_dat_connects()
+            self.lmp_dat[replicate] = [dat_head, dat_prm, dat_connect]
+            self.ase_templates[replicate] = lmp_struc
+        lmp_dat = self.lmp_dat[replicate]
+        return lmp_struc, lmp_dat
+
     #@timeit
-    def evaluate_ff_single(self, structure, options=[True, True, True], lmp_in=None):
+    def evaluate_ff_single(self, lmp_struc, options=[True]*3, 
+                           lmp_dat=None, 
+                           lmp_in=None,
+                           box=None,
+                           positions=None):
         """
         evaluate the reference structure with the ff_evaluatort
 
@@ -481,44 +560,28 @@ class ForceFieldParameters:
         - struc: ase structure
         - options (list): [energy, forces, stress]
         """
-        replicate = len(structure)/self.natoms_per_unit
-        ff_dic = {'structure': structure,
+        if type(lmp_struc) == Atoms:
+            lmp_struc, lmp_dat = self.get_lmp_input_from_structure(lmp_struc)
+        if box is not None: lmp_struc.box = box
+        if positions is not None: lmp_struc.coordinates = positions
+
+        #structure = lmp_struc.to_ase()
+        replicate = len(lmp_struc.atoms)/self.natoms_per_unit
+        ff_dic = {#'structure': lmp_struc.to_ase(),
                   'energy': None,
                   'forces': None,
                   'stress': None,
                   'replicate': replicate,
                   'options': options,
                   }
-        if self.ff_evaluator == 'lammps':
-            #t0 = time.time()
-            # We don't need to convert the structure every time
-            if replicate in self.ase_templates.keys():
-                structure = self.ff.reset_lammps_cell(structure)
-                lmp_struc = self.ase_templates[replicate]
-                # update the positions and cell vectors
-                lmp_struc.coordinates = structure.get_positions()
-                lmp_struc.box = structure.cell.cellpar()
-                #lmp_struc1 = self.ff.get_ase_lammps(structure); if not self.same_lmp(lmp_struc, lmp_struc1): import sys; sys.exit()
-            else:
-                lmp_struc = self.ff.get_ase_lammps(structure)
-                dat_head = lmp_struc._write_dat_head()
-                dat_prm = lmp_struc._write_dat_parameters()
-                dat_connect, _, _, _ = lmp_struc._write_dat_connects()
-                self.lmp_dat[replicate] = [dat_head, dat_prm, dat_connect]
-                self.ase_templates[replicate] = lmp_struc
-            lmp_dat = self.lmp_dat[replicate]
 
-            #t1 = time.time()#; print('get_ase_lammps', t1-t0)
-            calc = LAMMPSCalculator(lmp_struc, lmp_instance=self.lmp, lmp_in=lmp_in, lmp_dat=lmp_dat)
-            #t2 = time.time(); print('LAMMPSCalculator', t2-t1)
-            eng, force, stress = calc.express_evaluation()
-            #t3 = time.time(); print('express_evaluation', t3-t2)
-            if options[0]: # Energy
-                ff_dic['energy'] = eng
-            if options[1]: # forces
-                ff_dic['forces'] = force
-            if options[2]:
-                ff_dic['stress'] = stress
+        eng, force, stress = get_lmp_efs(lmp_struc, lmp_in, lmp_dat)
+        if options[0]: # Energy
+            ff_dic['energy'] = eng
+        if options[1]: # forces
+            ff_dic['forces'] = force
+        if options[2]:
+            ff_dic['stress'] = stress
         return ff_dic
 
     def same_lmp(self, struc1, struc2):
@@ -537,31 +600,115 @@ class ForceFieldParameters:
                 return False
         return True
 
+    def obj_from_ffdic(self, ff_dic, ref_dic, e_offset, E_only):
+        """
+        Compute the objective from a single ff_dic
+        """
+        result = 0
+        if ref_dic['options'][0]:
+            e_diff = ff_dic['energy'] - ref_dic['energy']
+            e_diff += ref_dic['replicate'] * e_offset
+            result += e_diff ** 2
+        if not E_only and ref_dic['options'][1]:
+            #print('debug', options, options[0], options[1], options[2])
+            f_diff = ff_dic['forces'] - ref_dic['forces']
+            result += self.f_coef * np.sum(f_diff ** 2)
+        if not E_only and ref_dic['options'][2]:
+            s_diff = ff_dic['stress'] - ref_dic['stress']
+            result += self.s_coef * np.sum(s_diff ** 2)
 
-    @timeit
-    def get_objective(self, ref_dics, e_offset=0, E_only=False, lmp_in=None):
+        return result
+
+    #@timeit
+    def get_objective(self, ref_dics, e_offset, E_only=False, lmp_in=None):
         """
         Compute the objective mismatch for the give ref_dics
-        """
-        total_obj = 0
-        for ref_dic in ref_dics:
-            struc, options = ref_dic['structure'], ref_dic['options']
-            ff_dic = self.evaluate_ff_single(struc, options, lmp_in=lmp_in)
-            #print(options)
-            if options[0]:
-                e_diff = ff_dic['energy'] - ref_dic['energy']
-                e_diff += ref_dic['replicate'] * e_offset
-                total_obj += e_diff ** 2
-            if not E_only and options[1]:
-                #print('debug', options, options[0], options[1], options[2])
-                f_diff = ff_dic['forces'] - ref_dic['forces']
-                total_obj += self.f_coef * np.sum(f_diff ** 2)
-            if not E_only and options[2]:
-                s_diff = ff_dic['stress'] - ref_dic['stress']
-                total_obj += self.s_coef * np.sum(s_diff ** 2)
+        Todo, Enable the parallel option
 
-            #if not E_only: print('=======================', ff_dic['energy'])#; import sys; sys.exit()
+        Args:
+            ref_dics:
+            e_offset:
+            E_only:
+            lmp_in:
+        """
+        lmp_strucs, lmp_dats = self.get_lmp_inputs_from_ref_dics(ref_dics)
+
+        total_obj = 0
+        if self.ncpu == 1:
+            for i, ref_dic in enumerate(ref_dics):
+                options = ref_dic['options']
+                structure = ref_dic['structure']
+                structure = self.ff.reset_lammps_cell(structure)
+                coordinates = structure.get_positions()
+                box = structure.cell.cellpar()
+
+                ff_dic = self.evaluate_ff_single(lmp_strucs[i], options, 
+                                                 lmp_dats[i], lmp_in,
+                                                 box, coordinates)
+                total_obj += self.obj_from_ffdic(ff_dic, ref_dic, e_offset, E_only)
+        else:
+            #parallel process
+            #queue = mp.Queue()
+            N_cycle = int(np.ceil(len(ref_dics)/self.ncpu))
+            #for cycle in range(N_cycle):
+            args_list = []
+            for i in range(self.ncpu):
+                if i < 10:
+                    folder = f"cpu00{i}"
+                elif i < 100:
+                    folder = f"cpu0{i}"
+                else:
+                    folder = f"cpu0{i}"
+                id1 = i*N_cycle
+                id2 = min([id1+N_cycle, len(ref_dics)])
+                #print(i, id1, id2, len(ref_dics))
+                os.makedirs(folder, exist_ok=True)
+                args_list.append((ref_dics[id1:id2], 
+                                  lmp_strucs[id1:id2],
+                                  lmp_dats[id1:id2], 
+                                  lmp_in, 
+                                  e_offset, 
+                                  self.natoms_per_unit, 
+                                  self.f_coef, 
+                                  self.s_coef, 
+                                  folder))
+            
+            from concurrent.futures import ProcessPoolExecutor
+            with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+                #results = executor.map(lambda p: evaluate_ff_par(*p), args_list)
+                results = [executor.submit(evaluate_ff_par, *p) for p in args_list]
+                for result in results:
+                    #print("AAAAAAAAAAAAAAAAa", result.result())
+                    total_obj += result.result()
+                
+            #for cpu in range(self.ncpu):
+            #    processes = []
+            #    N1 = self.ncpu*cycle
+            #    N2 = min([self.ncpu*(cycle+1), len(ref_dics)])
+            #    for i in range(N1, N2):
+            #        options = ref_dics[i]['options']
+            #        structure = ref_dics[i]['structure'] 
+            #        structure = self.ff.reset_lammps_cell(structure)
+            #        p = mp.Process(target = evaluate_ff_par,
+            #                       args = (i, queue, structure, options,
+            #                               lmp_strucs[i], 
+            #                               lmp_dats[i], 
+            #                               lmp_in,
+            #                               self.natoms_per_unit))
+            #        p.start()
+            #        processes.append(p)
+            #    unsorted_result = [queue.get() for p in processes]
+            #    for p in processes:
+            #        p.join()
+
+            #    # collect the results
+            #    for i, t in zip(range(N1, N2), sorted(unsorted_result)):
+            #        ref_dic = ref_dics[i]
+            #        ff_dic = t[1]
+            #        total_obj += self.obj_from_ffdic(ff_dic, ref_dic, e_offset, E_only)    
+
         return total_obj
+
 
     def get_opt_dict(self, terms=['vdW'], values=None, parameters=None):
         """
@@ -581,15 +728,14 @@ class ForceFieldParameters:
                 raise ValueError("Cannot the unknown FF term", term)
         return opt_dict
 
-    @timeit
-    def optimize_offset(self, ref_dics, parameters0=None, e_offset=0, steps=100):
+    #@timeit
+    def optimize_offset(self, ref_dics, parameters0=None, steps=100):
         """
         Approximate the offset of energy between FF and Reference evaluators
 
         Args:
             ref_dics (dict): reference data dictionary
             parameters0 (array): initial full parameters
-            e_offset (float): energy offset
             steps (int): optimization steps
 
         Returns:
@@ -600,31 +746,33 @@ class ForceFieldParameters:
         else:
             assert(len(parameters0) == len(self.params_init))
         self.update_ff_parameters(parameters0)
-        self.ff.set_lammps_in('lmp_tmp.in')
+        lmp_in = self.ff.get_lammps_in()
 
-        x = [e_offset]
+        #x = [e_offset]
+        x = [parameters0[-1]]
         def fun(x, ref_dics):
-            return self.get_objective(ref_dics, x[0], E_only=True, lmp_in='lmp_tmp.in')
+            return self.get_objective(ref_dics, x[0], E_only=True, lmp_in=lmp_in)
         res = minimize(fun, x, args=(ref_dics), options={'maxiter': steps})
         print("Optimized offset", res.x[0])
         return res.x[0]
 
-    def optimize(self, ref_dics, e_offset, opt_dict, parameters0=None, steps=100, debug=False):
+    def optimize(self, ref_dics, opt_dict, parameters0=None, steps=100, debug=False):
         """
         Approximate the offset of energy between FF and Reference evaluators
 
         Args:
             ref_dics (dict): reference data dictionary
-            e_offset (float): energy offset
-            steps (int): optimization steps
             opt_dict (dict): optimization terms and values
             parameters0 (array): initial full parameters
+            steps (int): optimization steps
             debug (Boolean): to show the progress or not
         Returns:
             The optimized charge values
         """
         if parameters0 is None:
             parameters0 = self.params_init.copy()
+            parameters0[-1] = self.optimize_offset(ref_dics)
+            #print(parameters0); import sys; sys.exit()
         else:
             assert(len(parameters0) == len(self.params_init))
         self.update_ff_parameters(parameters0)
@@ -643,6 +791,7 @@ class ForceFieldParameters:
         x = []
         ids = []
 
+        e_offset = parameters0[-1]
         for term in terms:
             if len(ids) > 0:
                 if term != 'charge':
@@ -682,8 +831,8 @@ class ForceFieldParameters:
             parameters = self.set_sub_parameters(values, terms, parameters0)
             self.update_ff_parameters(parameters)
             # Reset the lmp.in file
-            self.ff.set_lammps_in('lmp_tmp.in')
-            objective = self.get_objective(ref_dics, e_offset, lmp_in='lmp_tmp.in')
+            lmp_in = self.ff.get_lammps_in()
+            objective = self.get_objective(ref_dics, e_offset, lmp_in=lmp_in)
             #print("Debugging", values[0][:5], objective)
             return objective
 
@@ -698,7 +847,7 @@ class ForceFieldParameters:
         callback = my_callback if debug else None
 
         # Actual optimization
-        print("Init obj", x, objective_function_wrapper(x, ref_dics, parameters0, e_offset, ids, charges)); import sys; sys.exit()
+        print("Init obj", x, objective_function_wrapper(x, ref_dics, parameters0, e_offset, ids, charges))#; import sys; sys.exit()
         res = minimize(#obj_fun,
                        objective_function_wrapper,
                        x,
@@ -755,24 +904,23 @@ class ForceFieldParameters:
         opt_dict = self.get_opt_dict(self.terms, parameters=parameters)
 
         # Export reference data to file
-        if filename.endswith('.xml'):
-            root = ET.Element('library')
-            ref_elem = ET.SubElement(root, 'structure')
-            for key, val in opt_dict.items():
-                child = ET.SubElement(ref_elem, key)
-                if isinstance(val, np.ndarray):
-                    if val.ndim == 2: # Special handling for 2D arrays
-                        val = array_to_string(val)
-                    else:  # For 1D arrays, convert to list
-                        val = val.tolist()
-                child.text = str(val)
+        root = ET.Element('library')
+        ref_elem = ET.SubElement(root, 'structure')
+        for key, val in opt_dict.items():
+            child = ET.SubElement(ref_elem, key)
+            if isinstance(val, np.ndarray):
+                if val.ndim == 2: # Special handling for 2D arrays
+                    val = array_to_string(val)
+                else:  # For 1D arrays, convert to list
+                    val = val.tolist()
+            child.text = str(val)
 
-            # Use prettify to get a pretty-printed XML string
-            pretty_xml = prettify(root)
+        # Use prettify to get a pretty-printed XML string
+        pretty_xml = prettify(root)
 
-            # Write the pretty-printed XML to a file
-            with open(filename, 'w') as f:
-                f.write(pretty_xml)
+        # Write the pretty-printed XML to a file
+        with open(filename, 'w') as f:
+            f.write(pretty_xml)
 
 
     def load_references(self, filename):
@@ -786,6 +934,8 @@ class ForceFieldParameters:
                                       positions = dic['position'],
                                       cell = dic['lattice'],
                                       pbc = [1, 1, 1])
+
+                    structure = self.ff.reset_lammps_cell(structure)
                     dic0 = {
                             'structure': structure,
                             'energy': dic['energy'],
@@ -850,18 +1000,28 @@ class ForceFieldParameters:
         else:
             raise ValueError("Unsupported file format")
 
-    def evaluate_multi_references(self, ref_dics, parameters, offset_opt=None):
+    def evaluate_multi_references(self, ref_dics, parameters):
         """
         Calculate scores for multiple reference structures
         """
         self.update_ff_parameters(parameters)
-        if offset_opt is None: offset_opt = self.optimize_offset(ref_dics)
+        offset_opt = parameters[-1]
 
         ff_eng, ff_force, ff_stress = [], [], []
         ref_eng, ref_force, ref_stress = [], [], []
-        for ref_dic in ref_dics:
-            ff_dic = self.evaluate_ff_single(ref_dic['structure'], options=ref_dic['options'])
+
+        lmp_strucs, lmp_dats = self.get_lmp_inputs_from_ref_dics(ref_dics)
+        for i, ref_dic in enumerate(ref_dics):
+            structure, options = ref_dic['structure'], ref_dic['options']
+            #print(lmp_strucs[i].box)
+            structure = self.ff.reset_lammps_cell(structure)
+            box = structure.cell.cellpar()
+            coordinates = structure.get_positions()
+
+            ff_dic = self.evaluate_ff_single(lmp_strucs[i], options, lmp_dats[i], None, box, coordinates)
             ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
+            #print(i, ff_dic['energy']/ff_dic['replicate'], ref_dic['energy']/ref_dic['replicate'], offset_opt)
+
             ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
             if ref_dic['options'][1]:
                 ff_force.extend(ff_dic['forces'].tolist())
@@ -869,6 +1029,7 @@ class ForceFieldParameters:
             if ref_dic['options'][2]:
                 ff_stress.extend(ff_dic['stress'].tolist())
                 ref_stress.extend(ref_dic['stress'].tolist())
+
         ff_eng = np.array(ff_eng)
         ff_force = np.array(ff_force)
         ff_stress = np.array(ff_stress)
@@ -937,7 +1098,7 @@ class ForceFieldParameters:
         ax.legend()
 
 
-    def plot_ff_results(self, axes, parameters, ref_dics, offset_opt=None, label='Init'):
+    def plot_ff_results(self, axes, parameters, ref_dics, label='Init'):
         """
         Plot the results of FF prediction as compared to the references in
         terms of Energy, Force and Stress values.
@@ -950,39 +1111,19 @@ class ForceFieldParameters:
         """
 
         # Set up the ff engine
-        #self.update_ff_parameters(parameters)
-        #if offset_opt is None: offset_opt = self.optimize_offset(ref_dics)
+        self.update_ff_parameters(parameters)
 
-        #ff_eng, ff_force, ff_stress = [], [], []
-        #ref_eng, ref_force, ref_stress = [], [], []
-        #for ref_dic in ref_dics:
-        #    ff_dic = self.evaluate_ff_single(ref_dic['structure'], options=ref_dic['options'])
-        #    ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
-        #    ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
-        #    if ref_dic['options'][1]:
-        #        ff_force.extend(ff_dic['forces'].tolist())
-        #        ref_force.extend(ref_dic['forces'].tolist())
-        #    if ref_dic['options'][2]:
-        #        ff_stress.extend(ff_dic['stress'].tolist())
-        #        ref_stress.extend(ref_dic['stress'].tolist())
-        #ff_eng = np.array(ff_eng)
-        #ff_force = np.array(ff_force)
-        #ff_stress = np.array(ff_stress)
-        #ref_eng = np.array(ref_eng)
-        #ref_force = np.array(ref_force)
-        #ref_stress = np.array(ref_stress)
-
-        #mse_eng = np.sqrt(np.sum((ff_eng-ref_eng)**2))/len(ff_eng)
-        #mse_for = np.sqrt(np.sum((ff_force-ref_force)**2))/len(ff_force)
-        #mse_str = np.sqrt(np.sum((ff_stress-ref_stress)**2))/len(ff_stress)
-        ff_values, ref_values, rmse_values = self.evaluate_multi_references(ref_dics, parameters, offset_opt)
+        ff_values, ref_values, rmse_values = self.evaluate_multi_references(ref_dics, parameters)
         (ff_eng, ff_force, ff_stress) = ff_values 
         (ref_eng, ref_force, ref_stress) = ref_values 
         (mse_eng, mse_for, mse_str) = rmse_values 
  
-        label1 = 'Energy {:s}: {:.3f}'.format(label, mse_eng); print('RMSE (eV/molecule)', label1)
-        label2 = 'Forces {:s}: {:.3f}'.format(label, mse_for); print('RMSE (eV/A)', label2)
-        label3 = 'Stress {:s}: {:.3f}'.format(label, mse_str); print('RMSE (GPa)', label3)
+        label1 = 'Energy {:s}: {:.3f}'.format(label, mse_eng)
+        label2 = 'Forces {:s}: {:.3f}'.format(label, mse_for)
+        label3 = 'Stress {:s}: {:.3f}'.format(label, mse_str)
+        print('RMSE (eV/molecule)', label1)
+        print('RMSE (eV/A)', label2)
+        print('RMSE (GPa)', label3)
         axes[0].scatter(ref_eng, ff_eng, label=label1)
         axes[1].scatter(ref_force, ff_force, label=label2)
         axes[2].scatter(ref_stress, ff_stress, label=label3)
