@@ -142,6 +142,38 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, natoms_per
     #print(result)
     return result
 
+def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, natoms_per_unit, f_coef, s_coef, dir_name):
+    """
+    parallel version
+    """
+    pwd = os.getcwd()
+    result = 0
+    os.chdir(dir_name)
+    
+    ff_eng, ff_force, ff_stress = [], [], []
+    ref_eng, ref_force, ref_stress = [], [], []
+
+    for ref_dic, lmp_struc, lmp_dat in zip(ref_dics, lmp_strucs, lmp_dats):
+        structure = ref_dic['structure']
+        options = ref_dic['options']
+        replicate = len(structure)/natoms_per_unit
+        lmp_struc.box = structure.cell.cellpar()
+        lmp_struc.coordinates = structure.get_positions()
+        eng, force, stress = get_lmp_efs(lmp_struc, lmp_in, lmp_dat)
+
+        ff_eng.append(eng/replicate + e_offset)
+        ref_eng.append(ref_dic['energy']/replicate)
+
+        if options[1]:
+            ff_force.extend(force.tolist())
+            ref_force.extend(ref_dic['forces'].tolist())
+
+        if options[2]:
+            ff_stress.extend(stress.tolist())
+            ref_stress.extend(ref_dic['stress'].tolist())
+    os.chdir(pwd)
+    return (ff_eng, ff_force, ff_stress, ref_eng, ref_force, ref_stress)
+
 """
 A class to handle the optimization of force field parameters
 for molecular simulation.
@@ -653,12 +685,7 @@ class ForceFieldParameters:
             #for cycle in range(N_cycle):
             args_list = []
             for i in range(self.ncpu):
-                if i < 10:
-                    folder = f"cpu00{i}"
-                elif i < 100:
-                    folder = f"cpu0{i}"
-                else:
-                    folder = f"cpu0{i}"
+                folder = self.get_label(i)
                 id1 = i*N_cycle
                 id2 = min([id1+N_cycle, len(ref_dics)])
                 #print(i, id1, id2, len(ref_dics))
@@ -678,7 +705,6 @@ class ForceFieldParameters:
                 #results = executor.map(lambda p: evaluate_ff_par(*p), args_list)
                 results = [executor.submit(evaluate_ff_par, *p) for p in args_list]
                 for result in results:
-                    #print("AAAAAAAAAAAAAAAAa", result.result())
                     total_obj += result.result()
                 
             #for cpu in range(self.ncpu):
@@ -1000,6 +1026,15 @@ class ForceFieldParameters:
         else:
             raise ValueError("Unsupported file format")
 
+    def get_label(self, i):
+        if i < 10:
+            folder = f"cpu00{i}"
+        elif i < 100:
+            folder = f"cpu0{i}"
+        else:
+            folder = f"cpu0{i}"       
+        return folder
+ 
     def evaluate_multi_references(self, ref_dics, parameters):
         """
         Calculate scores for multiple reference structures
@@ -1011,24 +1046,57 @@ class ForceFieldParameters:
         ref_eng, ref_force, ref_stress = [], [], []
 
         lmp_strucs, lmp_dats = self.get_lmp_inputs_from_ref_dics(ref_dics)
-        for i, ref_dic in enumerate(ref_dics):
-            structure, options = ref_dic['structure'], ref_dic['options']
-            #print(lmp_strucs[i].box)
-            structure = self.ff.reset_lammps_cell(structure)
-            box = structure.cell.cellpar()
-            coordinates = structure.get_positions()
+        lmp_in = self.ff.get_lammps_in()
 
-            ff_dic = self.evaluate_ff_single(lmp_strucs[i], options, lmp_dats[i], None, box, coordinates)
-            ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
-            #print(i, ff_dic['energy']/ff_dic['replicate'], ref_dic['energy']/ref_dic['replicate'], offset_opt)
+        if self.ncpu == 1:
+            for i, ref_dic in enumerate(ref_dics):
+                structure, options = ref_dic['structure'], ref_dic['options']
+                #print(lmp_strucs[i].box)
+                structure = self.ff.reset_lammps_cell(structure)
+                box = structure.cell.cellpar()
+                coordinates = structure.get_positions()
 
-            ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
-            if ref_dic['options'][1]:
-                ff_force.extend(ff_dic['forces'].tolist())
-                ref_force.extend(ref_dic['forces'].tolist())
-            if ref_dic['options'][2]:
-                ff_stress.extend(ff_dic['stress'].tolist())
-                ref_stress.extend(ref_dic['stress'].tolist())
+                ff_dic = self.evaluate_ff_single(lmp_strucs[i], options, lmp_dats[i], None, box, coordinates)
+                ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
+                ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
+                if ref_dic['options'][1]:
+                    ff_force.extend(ff_dic['forces'].tolist())
+                    ref_force.extend(ref_dic['forces'].tolist())
+                if ref_dic['options'][2]:
+                    ff_stress.extend(ff_dic['stress'].tolist())
+                    ref_stress.extend(ref_dic['stress'].tolist())
+        else:
+            #parallel process
+            N_cycle = int(np.ceil(len(ref_dics)/self.ncpu))
+            #for cycle in range(N_cycle):
+            args_list = []
+            for i in range(self.ncpu):
+                folder = self.get_label(i)
+                id1 = i*N_cycle
+                id2 = min([id1+N_cycle, len(ref_dics)])
+                #print(i, id1, id2, len(ref_dics))
+                os.makedirs(folder, exist_ok=True)
+                args_list.append((ref_dics[id1:id2], 
+                                  lmp_strucs[id1:id2],
+                                  lmp_dats[id1:id2], 
+                                  lmp_in, 
+                                  offset_opt, 
+                                  self.natoms_per_unit, 
+                                  self.f_coef, 
+                                  self.s_coef, 
+                                  folder))
+            
+            from concurrent.futures import ProcessPoolExecutor
+            with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+                results = [executor.submit(evaluate_ff_error_par, *p) for p in args_list]
+                for result in results:
+                    res = result.result()
+                    ff_eng.extend(res[0])
+                    ff_force.extend(res[1])
+                    ff_stress.extend(res[2])
+                    ref_eng.extend(res[3])
+                    ref_force.extend(res[4])
+                    ref_stress.extend(res[5])
 
         ff_eng = np.array(ff_eng)
         ff_force = np.array(ff_force)
