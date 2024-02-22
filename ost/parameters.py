@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import ast
 import os, time
+from copy import deepcopy
 
 import numpy as np
 from scipy.optimize import minimize
@@ -810,7 +811,6 @@ class ForceFieldParameters:
         return opt_dict
 
     #@timeit
-
     def optimize_init(self, ref_dics, opt_dict, parameters0=None):
 
         if parameters0 is None:
@@ -910,7 +910,7 @@ class ForceFieldParameters:
         return values
 
 
-    def optimize_global(self, ref_dics, opt_dict, parameters0=None, steps=100):
+    def optimize_global(self, ref_dics, opt_dict, parameters0=None, steps=100, t0=100, alpha=0.99):
         """
         FF parameters' optimization using the simulated annealing algorithm
         Todo, test new interface, add temp scheduling
@@ -924,23 +924,40 @@ class ForceFieldParameters:
             The optimized values
         """
         x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0)
+        t = t0
+        current_x = x
+        current_fun = obj_fun(current_x, *fun_args)
+        best_x, best_fun = current_x, current_fun
 
-        for kt in kts:
+        for i in range(steps):
             # Generate a candidate solution
-            candidate_x = current_x + random.uniform(-1, 1) * (bounds[1] - bounds[0])
-            candidate_fun = objfun(x, *fun_args)
+            candidate_x = current_x.copy()
+            for j in range(len(bounds)):
+                lb, ub = bounds[j][0], bounds[j][1]
+                candidate_x[j] += 0.02 * np.random.uniform(-1, 1) * (lb-ub)
+                if candidate_x[j] > ub:
+                    candidate_x[j] = ub
+                elif candidate_x[j] < lb:
+                    candidate_x[j] = lb
+            candidate_fun = obj_fun(candidate_x, *fun_args)
 
-            # Check the solution and accept it with probability
+            # Update best fun if necessary
             if candidate_fun < best_fun:
-                best_x, best_fun = candidate_x, candidate_fun
+                best_x, best_fun = candidate_x.copy(), deepcopy(candidate_fun)
+
+            # Accept the solution with probability
+            if np.random.random() < np.exp((current_fun - candidate_fun)/t):
                 current_x, current_fun = candidate_x, candidate_fun
-            else:
-                if np.random.random() < np.exp((current_fun - candidate_fun)/kt):
-                    current_x, current_fun = candidate_x, candidate_fun
+
+            t *= alpha
+            print("Step {:4d} {:4.1f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))
+        print("Best results after {:d} steps: {:.4f}".format(steps, best_fun))
+        #print("Best fun", obj_fun(best_x, *fun_args))#; import sys; sys.exit()
 
         values = self.optimize_post(best_x, fun_args[-2], fun_args[-1])
+        #print(values)
 
-        return best_x, best_fun, values
+        return best_x, best_fun, values, steps
 
 
     def optimize(self, ref_dics, opt_dict, parameters0=None, steps=100, debug=False):
