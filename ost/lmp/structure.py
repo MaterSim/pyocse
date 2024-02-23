@@ -54,7 +54,7 @@ variable pyz equal pyz
 variable pxz equal pxz
 variable pxy equal pxy
 variable fx atom fx
-variable fy atom fz
+variable fy atom fy
 variable fz atom fz
 kspace_style pppm {ewald_error_tolerance:}
 kspace_modify gewald {gewald:} mesh {fftx:} {ffty:} {fftz:} order 6

@@ -206,6 +206,9 @@ class LAMMPSCalculatorMixIn:
 
         stress = -stress * 101325 * units.Pascal
         forces = np.vstack((fx, fy, fz)).T * units.kcal/units.mol
+        #print('fx', fx)
+        #print('fy', fy)
+        #print('fz', fy)
 
         return energy, forces, stress
 
