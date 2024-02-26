@@ -113,17 +113,20 @@ def compute_r2(y_true, y_pred):
     :param y_pred: The predicted values by the regression model.
     :return: The R-squared value.
     """
-    # Calculate the mean of actual values
-    mean_y_true = sum(y_true) / len(y_true)
-    
-    # Total sum of squares (SST)
-    sst = sum((y_i - mean_y_true) ** 2 for y_i in y_true)
-    
-    # Residual sum of squares (SSE)
-    sse = sum((y_true_i - y_pred_i) ** 2 for y_true_i, y_pred_i in zip(y_true, y_pred))
-    
-    # R-squared
-    r2 = 1 - (sse / sst)
+    if len(y_true) > 0:
+        # Calculate the mean of actual values
+        mean_y_true = sum(y_true) / len(y_true)
+        
+        # Total sum of squares (SST)
+        sst = sum((y_i - mean_y_true) ** 2 for y_i in y_true)
+        
+        # Residual sum of squares (SSE)
+        sse = sum((y_true_i - y_pred_i) ** 2 for y_true_i, y_pred_i in zip(y_true, y_pred))
+        
+        # R-squared
+        r2 = 1 - (sse / sst)
+    else:
+        r2 = 0
     
     return r2
 
@@ -135,13 +138,14 @@ def get_lmp_efs(lmp_struc, lmp_in, lmp_dat):
     calc = LAMMPSCalculator(lmp_struc, lmp_in=lmp_in, lmp_dat=lmp_dat)
     return calc.express_evaluation()
  
-def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only, natoms_per_unit, f_coef, s_coef, dir_name):
+def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only, natoms_per_unit, f_coef, s_coef, dir_name, obj):
     """
     parallel version
     """
     #print("parallel version", E_only)
     pwd = os.getcwd()
-    result = 0.0
+    total_mse = 0.0
+    eng_arr, force_arr, stress_arr = [[], []], [[], []], [[], []]
     os.chdir(dir_name)
 
     for ref_dic, lmp_struc, lmp_dat in zip(ref_dics, lmp_strucs, lmp_dats):
@@ -151,9 +155,26 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only, na
                                  lmp_dat, 
                                  lmp_in,
                                  natoms_per_unit)
-        result += obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef)
+        result = obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef, obj)
+        if obj == 'MSE':
+            total_mse += result
+        else:
+            engs, forces, stresses = result
+            eng_arr[0].append(engs[0])
+            eng_arr[1].append(engs[1])
+            if len(forces) > 0:
+                force_arr[0].extend(forces[0])
+                force_arr[1].extend(forces[1])
+            if len(stresses) > 0:
+                stress_arr[0].extend(stresses[0])
+                stress_arr[1].extend(stresses[1])
+    #print(len(eng_arr[0]), len(force_arr[1]), len(stress_arr[0]), '++++++++++++++')
+
     os.chdir(pwd)
-    return result
+    if obj == 'MSE':
+        return total_mse
+    else:
+        return (eng_arr, force_arr, stress_arr)
 
 def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, natoms_per_unit, f_coef, s_coef, dir_name):
     """
@@ -195,27 +216,44 @@ def evaluate_structure(structure, lmp_struc, lmp_dat, lmp_in, natoms_per_unit):
     lmp_struc.coordinates = structure.get_positions()
     return get_lmp_efs(lmp_struc, lmp_in, lmp_dat)
 
-def obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef):
+def obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef, obj):
     """
-    Compute the objective from a single ff_dic
+    Compute the objective from a single ff_dic.
+    If obj is MSE, return mse value
+    If obj is r2, return (eng, force, stress) array
     """
-    result = 0
+    mse = 0
     (eng, force, stress) = efs
+    eng_arr, force_arr, stress_arr = [], [[], []], [[], []]
 
     if ref_dic['options'][0]:
-        e_diff = eng - ref_dic['energy']
-        e_diff += ref_dic['replicate'] * e_offset
-        result += e_diff ** 2
+        e1 = eng / ref_dic['replicate'] + e_offset
+        e2 = ref_dic['energy'] / ref_dic['replicate']
+        mse += (e1-e2) ** 2
+        eng_arr = [e1, e2]
 
     if not E_only:
         if ref_dic['options'][1]:
-            f_diff = force - ref_dic['forces']
-            result += f_coef * np.sum(f_diff ** 2)
+            f1 = force.flatten()
+            f2 = ref_dic['forces'].flatten()
+            f_diff = f1 - f2
+            mse += f_coef * np.sum(f_diff ** 2)
+            force_arr[0] = f1
+            force_arr[1] = f2
 
         if ref_dic['options'][2]:
-            s_diff = stress - ref_dic['stress']
-            result += s_coef * np.sum(s_diff ** 2)
-    return result
+            s1 = stress.flatten()
+            s2 = ref_dic['stress'].flatten()
+            s_diff = s1 - s2
+            mse += s_coef * np.sum(s_diff ** 2)
+            stress_arr[0] = s1
+            stress_arr[1] = s2
+
+    if obj == 'MSE':
+        return mse
+    else:
+        return (eng_arr, force_arr, stress_arr)
+
 
 
 def evaluate_ref_single(structure, calculator, natoms_per_unit, 
@@ -335,6 +373,7 @@ class ForceFieldParameters:
                  f_coef = 0.1,
                  s_coef = 1.0,
                  ncpu = 1,
+                 verbose = True,
                  device = 'cpu'):
         """
         Initialize the parameters
@@ -377,6 +416,7 @@ class ForceFieldParameters:
         self.s_coef = s_coef
         self.terms = ['bond', 'angle', 'proper', 'vdW', 'charge', 'offset']
         self.ncpu = ncpu
+        self.verbose = verbose
 
     def get_default_ff_parameters(self, coefs=[0.8, 1.2], deltas=[-0.2, 0.2]):
         """
@@ -636,6 +676,7 @@ class ForceFieldParameters:
         A list of ref_dics that store the structure/energy/force/stress
         """
 
+        ref_structure = self.ff.reset_lammps_cell(ref_structure)
         return augment_ref_single(ref_structure, 
                                   self.calculator, 
                                   steps, 
@@ -689,9 +730,12 @@ class ForceFieldParameters:
         evaluate the reference structure with the ff_evaluatort
 
         Args:
-        - struc: ase structure
+        - lmp_struc: ase structure
         - options (list): [energy, forces, stress]
+        - lmp_dat
+        - lmp_in
         """
+
         if type(lmp_struc) == Atoms:
             lmp_struc, lmp_dat = self.get_lmp_input_from_structure(lmp_struc)
         if box is not None: lmp_struc.box = box
@@ -735,7 +779,7 @@ class ForceFieldParameters:
 
 
     #@timeit
-    def get_objective(self, ref_dics, e_offset, E_only=False, lmp_in=None):
+    def get_objective(self, ref_dics, e_offset, E_only=False, lmp_in=None, obj='MSE'):
         """
         Compute the objective mismatch for the give ref_dics
         Todo, Enable the parallel option
@@ -745,10 +789,14 @@ class ForceFieldParameters:
             e_offset:
             E_only:
             lmp_in:
+            obj:
         """
-        lmp_strucs, lmp_dats = self.get_lmp_inputs_from_ref_dics(ref_dics)
 
         total_obj = 0
+        eng_arr, force_arr, stress_arr = [[], []], [[], []], [[], []]
+
+        lmp_strucs, lmp_dats = self.get_lmp_inputs_from_ref_dics(ref_dics)
+
         if self.ncpu == 1:
             for i, ref_dic in enumerate(ref_dics):
                 options = ref_dic['options']
@@ -757,14 +805,28 @@ class ForceFieldParameters:
                                                  )
                 #total_obj += self.obj_from_ffdic(ff_dic, ref_dic, e_offset, E_only)
                 efs = (ff_dic['energy'], ff_dic['forces'], ff_dic['stress'])
-                total_obj += obj_from_efs(efs, ref_dic, e_offset, E_only, self.f_coef, self.s_coef)
+                res = obj_from_efs(efs, 
+                                   ref_dic, 
+                                   e_offset, 
+                                   E_only, 
+                                   self.f_coef, 
+                                   self.s_coef,
+                                   obj,
+                                  )
+                if obj == 'MSE':
+                    total_obj += res
+                else:
+                    ([e1, e2], [f1, f2], [s1, s2]) = res
+                    eng_arr[0].append(e1)
+                    eng_arr[1].append(e2)
+                    force_arr[0].extend(f1)
+                    force_arr[1].extend(f2)
+                    stress_arr[0].extend(s1)
+                    stress_arr[1].extend(s1)
         else:
             #parallel process
-            #queue = mp.Queue()
             N_cycle = int(np.ceil(len(ref_dics)/self.ncpu))
-            #for cycle in range(N_cycle):
             args_list = []
-            #print('E_only', E_only)
             for i in range(self.ncpu):
                 folder = self.get_label(i)
                 id1 = i*N_cycle
@@ -780,14 +842,31 @@ class ForceFieldParameters:
                                   self.natoms_per_unit, 
                                   self.f_coef, 
                                   self.s_coef, 
-                                  folder))
+                                  folder,
+                                  obj,
+                                  ))
             
             from concurrent.futures import ProcessPoolExecutor
             with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
                 results = [executor.submit(evaluate_ff_par, *p) for p in args_list]
                 for result in results:
-                    total_obj += result.result()
-                    #print(result.result())
+                    if obj == 'MSE':
+                        total_obj += result.result()
+                        #print(result.result())
+                    else:
+                        #([e1, e2], [f1, f2], [s1, s2]) = result.result()
+                        (engs, forces, stresses) = result.result()
+                        eng_arr[0].extend(engs[0])
+                        eng_arr[1].extend(engs[1])
+                        force_arr[0].extend(forces[0])
+                        force_arr[1].extend(forces[1])
+                        stress_arr[0].extend(stresses[0])
+                        stress_arr[1].extend(stresses[1])
+            if obj == 'R2':
+                #print(eng_arr[0])
+                total_obj -= compute_r2(eng_arr[0], eng_arr[1])
+                total_obj -= compute_r2(force_arr[0], force_arr[1])
+                total_obj -= compute_r2(stress_arr[0], stress_arr[1])
 
         return total_obj
 
@@ -811,7 +890,7 @@ class ForceFieldParameters:
         return opt_dict
 
     #@timeit
-    def optimize_init(self, ref_dics, opt_dict, parameters0=None):
+    def optimize_init(self, ref_dics, opt_dict, parameters0=None, obj='MSE'):
 
         if parameters0 is None:
             #parameters0 = self.params_init.copy()
@@ -855,7 +934,7 @@ class ForceFieldParameters:
         _, sub_bounds, _ = self.get_sub_parameters(parameters0, terms)
         bounds = [item for sublist in sub_bounds for item in sublist]
 
-        def obj_fun(x, ref_dics, parameters0, e_offset, ids, charges=None):
+        def obj_fun(x, ref_dics, parameters0, e_offset, ids, obj, charges=None):
             """
             Split the x into list
             """
@@ -876,17 +955,17 @@ class ForceFieldParameters:
             self.update_ff_parameters(parameters)
             # Reset the lmp.in file
             lmp_in = self.ff.get_lammps_in()
-            objective = self.get_objective(ref_dics, e_offset, lmp_in=lmp_in)
+            objective = self.get_objective(ref_dics, e_offset, lmp_in=lmp_in, obj=obj)
             #print("Debugging", values[0][:5], objective)
             return objective
 
         # set call back function for debugging
-        def objective_function_wrapper(x, ref_dics, parameters0, e_offset, ids, charges):
+        def objective_function_wrapper(x, ref_dics, parameters0, e_offset, obj, ids, charges):
             global last_function_value
-            last_function_value = obj_fun(x, ref_dics, parameters0, e_offset, ids, charges)
+            last_function_value = obj_fun(x, ref_dics, parameters0, e_offset, obj, ids, charges)
             return last_function_value
 
-        arg_lists = (ref_dics, parameters0, e_offset, ids, charges)
+        arg_lists = (ref_dics, parameters0, e_offset, ids, obj, charges)
         # Actual optimization
         print("Init obj", x, objective_function_wrapper(x, *arg_lists))#; import sys; sys.exit()
 
@@ -910,7 +989,7 @@ class ForceFieldParameters:
         return values
 
 
-    def optimize_global(self, ref_dics, opt_dict, parameters0=None, steps=100, t0=100, alpha=0.99):
+    def optimize_global(self, ref_dics, opt_dict, parameters0=None, steps=100, obj='MSE', t0=100, alpha=0.99):
         """
         FF parameters' optimization using the simulated annealing algorithm
         Todo, test new interface, add temp scheduling
@@ -923,7 +1002,7 @@ class ForceFieldParameters:
         Returns:
             The optimized values
         """
-        x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0)
+        x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0, obj)
         t = t0
         current_x = x
         current_fun = obj_fun(current_x, *fun_args)
@@ -950,17 +1029,18 @@ class ForceFieldParameters:
                 current_x, current_fun = candidate_x, candidate_fun
 
             t *= alpha
-            print("Step {:4d} {:4.1f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))
+            if self.verbose:
+                print("Step {:4d} {:4.1f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))
         print("Best results after {:d} steps: {:.4f}".format(steps, best_fun))
         #print("Best fun", obj_fun(best_x, *fun_args))#; import sys; sys.exit()
 
-        values = self.optimize_post(best_x, fun_args[-2], fun_args[-1])
+        values = self.optimize_post(best_x, fun_args[-3], fun_args[-1])
         #print(values)
 
         return best_x, best_fun, values, steps
 
 
-    def optimize(self, ref_dics, opt_dict, parameters0=None, steps=100, debug=False):
+    def optimize_local(self, ref_dics, opt_dict, parameters0=None, steps=100, obj='MSE'):
         """
         FF parameters' local optimization using the Nelder-Mead algorithm
 
@@ -969,15 +1049,14 @@ class ForceFieldParameters:
             opt_dict (dict): optimization terms and values
             parameters0 (array): initial full parameters
             steps (int): optimization steps
-            debug (Boolean): to show the progress or not
         Returns:
             The optimized values
         """
-        x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0)
+        x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0, obj)
 
         def my_callback(xk):
             print(f"Solution: {xk[:2]}, Objective: {last_function_value}")
-        callback = my_callback if debug else None
+        callback = my_callback if self.verbose else None
 
         res = minimize(#obj_fun,
                        obj_fun, #objective_function_wrapper,
@@ -990,7 +1069,7 @@ class ForceFieldParameters:
                        )
 
         # Rearrange the optimized parameters to the list of values
-        values = self.optimize_post(res.x, fun_args[-2], fun_args[-1])
+        values = self.optimize_post(res.x, fun_args[-3], fun_args[-1])
 
         return res.x, res.fun, values, res.nfev
 
@@ -1270,6 +1349,11 @@ class ForceFieldParameters:
             list of reference dics
         """
         ref_dics = []
+
+        # Always reset the cell to make sure that force will be consistent
+        for struc in strucs: 
+            struc = self.ff.reset_lammps_cell(struc)
+
         if self.ncpu == 1:
             for struc in strucs: 
                 dics = self.augment_reference(struc, 
@@ -1403,9 +1487,9 @@ class ForceFieldParameters:
         (r2_eng, r2_for, r2_str) = r2_values 
         print(r2_values)
  
-        label1 = 'Energy {:s}: {:.3f} [{:.3f}]'.format(label, mse_eng, r2_eng)
-        label2 = 'Forces {:s}: {:.3f} [{:.3f}]'.format(label, mse_for, r2_for)
-        label3 = 'Stress {:s}: {:.3f} [{:.3f}]'.format(label, mse_str, r2_str)
+        label1 = 'Energy {:s}: {:.4f} [{:.4f}]'.format(label, mse_eng, r2_eng)
+        label2 = 'Forces {:s}: {:.4f} [{:.4f}]'.format(label, mse_for, r2_for)
+        label3 = 'Stress {:s}: {:.4f} [{:.4f}]'.format(label, mse_str, r2_str)
         print('RMSE (eV/molecule)', label1)
         print('RMSE (eV/A)', label2)
         print('RMSE (GPa)', label3)
