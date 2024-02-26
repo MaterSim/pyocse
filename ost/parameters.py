@@ -865,8 +865,8 @@ class ForceFieldParameters:
             if obj == 'R2':
                 #print(eng_arr[0])
                 total_obj -= compute_r2(eng_arr[0], eng_arr[1])
-                total_obj -= compute_r2(force_arr[0], force_arr[1])
-                total_obj -= compute_r2(stress_arr[0], stress_arr[1])
+                total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
+                total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
 
         return total_obj
 
@@ -1030,7 +1030,7 @@ class ForceFieldParameters:
 
             t *= alpha
             if self.verbose:
-                print("Step {:4d} {:4.1f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))
+                print("Step {:4d} {:5.2f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))
         print("Best results after {:d} steps: {:.4f}".format(steps, best_fun))
         #print("Best fun", obj_fun(best_x, *fun_args))#; import sys; sys.exit()
 
@@ -1162,7 +1162,7 @@ class ForceFieldParameters:
             f.write(pretty_xml)
 
 
-    def load_references(self, filename):
+    def load_references(self, filename, reset_cell=False):
         ref_dics = []
         if filename.endswith(('.xml', '.db')):
             # Load reference data from file
@@ -1173,8 +1173,8 @@ class ForceFieldParameters:
                                       positions = dic['position'],
                                       cell = dic['lattice'],
                                       pbc = [1, 1, 1])
-
-                    structure = self.ff.reset_lammps_cell(structure)
+                    if reset_cell:
+                        structure = self.ff.reset_lammps_cell(structure)
                     dic0 = {
                             'structure': structure,
                             'energy': dic['energy'],
