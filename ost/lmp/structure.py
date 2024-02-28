@@ -15,6 +15,7 @@ atom_style full
 
 dimension 3
 boundary {pbc:} #p p m
+atom_modify sort 0 0.0
 
 bond_style hybrid harmonic
 angle_style hybrid harmonic
