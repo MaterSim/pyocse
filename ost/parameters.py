@@ -6,12 +6,14 @@ from copy import deepcopy
 
 import numpy as np
 from scipy.optimize import minimize
+from math import ceil
 
 from ase import Atoms
 from ase.optimize.fire import FIRE
 from ase.constraints import ExpCellFilter
 from ase.spacegroup.symmetrize import FixSymmetry
 
+from ost.utils import reset_lammps_cell
 from ost.forcefield import forcefield
 from ost.lmp import LAMMPSCalculator
 from mace.calculators import mace_mp
@@ -306,7 +308,7 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
     parallel version
     """
     coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
-    dxs = [0.05, 0.075, 0.010]
+    dxs = [0.025, 0.050, 0.075]
 
     ref_dics = []
     print('# Relaxation to get the ground state: 1')
@@ -316,6 +318,15 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
     dyn = FIRE(ecf, a=0.1)
     dyn.run(fmax=fmax, steps=steps)
     ref_structure.set_constraint()
+
+    # reset_lammps_cell and make supercell (QZ......)
+    cell = ref_structure.get_cell_lengths_and_angles()[:3]
+    supercell = [1, 1, 1]
+    for ax in range(3):
+        supercell[ax] = int(ceil(9.0/cell[ax]))
+    ref_structure *= supercell
+    ref_structure = reset_lammps_cell(ref_structure)
+
     ref_dic = evaluate_ref_single(ref_structure, 
                                   calculator,
                                   n_atoms_per_unit,
@@ -405,6 +416,10 @@ class ForceFieldParameters:
                                       dispersion = True,
                                       default_dtype = "float64",
                                       device = device)
+        elif ref_evaluator == 'ani':
+            from torchani import models
+            self.calculator = models.ANI2x().ase()
+
         if ff_evaluator == 'lammps':
             # Using one lmp instance may cause long time delay at the end
             #cmdargs = ["-screen", "none", "-log", "lmp.log", "-nocite"]
@@ -418,7 +433,7 @@ class ForceFieldParameters:
         self.ncpu = ncpu
         self.verbose = verbose
 
-    def get_default_ff_parameters(self, coefs=[0.8, 1.2], deltas=[-0.2, 0.2]):
+    def get_default_ff_parameters(self, coefs=[0.5, 1.5], deltas=[-0.2, 0.2]):
         """
         Get the initial FF parameters/bounds/constraints
         # Loop over molecule
@@ -676,7 +691,7 @@ class ForceFieldParameters:
         A list of ref_dics that store the structure/energy/force/stress
         """
 
-        ref_structure = self.ff.reset_lammps_cell(ref_structure)
+        #ref_structure = self.ff.reset_lammps_cell(ref_structure)
         return augment_ref_single(ref_structure, 
                                   self.calculator, 
                                   steps, 
@@ -867,6 +882,7 @@ class ForceFieldParameters:
                 total_obj -= compute_r2(eng_arr[0], eng_arr[1])
                 total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
                 total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
+                #print('BBBBBBBBBBBb', self.f_coef, compute_r2(force_arr[0], force_arr[1]))
 
         return total_obj
 
@@ -921,13 +937,13 @@ class ForceFieldParameters:
                     x.extend(opt_dict[term])
                     ids.append(ids[-1] + len(opt_dict[term]))
                 else:
-                    x.extend([1.0])
+                    x.extend([1.0]) #TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
             else:
                 if term != 'charge':
                     x.extend(opt_dict[term])
                     ids.append(len(opt_dict[term]))
                 else:
-                    x.extend([1.0])
+                    x.extend([1.0]) #TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
 
         #print("Starting", x)
         #x = [item for sublist in values for item in sublist]
@@ -1030,7 +1046,7 @@ class ForceFieldParameters:
 
             t *= alpha
             if self.verbose:
-                print("Step {:4d} {:5.2f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))
+                print("Step {:4d} {:5.2f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))#, current_x)
         print("Best results after {:d} steps: {:.4f}".format(steps, best_fun))
         #print("Best fun", obj_fun(best_x, *fun_args))#; import sys; sys.exit()
 
@@ -1174,7 +1190,7 @@ class ForceFieldParameters:
                                       cell = dic['lattice'],
                                       pbc = [1, 1, 1])
                     if reset_cell:
-                        structure = self.ff.reset_lammps_cell(structure)
+                        structure = reset_lammps_cell(structure)
                     dic0 = {
                             'structure': structure,
                             'energy': dic['energy'],
@@ -1248,6 +1264,29 @@ class ForceFieldParameters:
             folder = f"cpu0{i}"       
         return folder
  
+    def evaluate_single_reference(self, ref_dic, parameters):
+
+        f_mse, f_r2, s_mse, s_r2 = 0, 0, 0, 0
+        self.update_ff_parameters(parameters)
+        offset_opt = parameters[-1]
+        structure, options = ref_dic['structure'], ref_dic['options']
+
+        ff_dic = self.evaluate_ff_single(structure, options, None)
+        e_diff = ff_dic['energy']/ff_dic['replicate'] + offset_opt - ref_dic['energy']/ff_dic['replicate']
+        print(ff_dic['energy'], ref_dic['energy'])
+        if options[1]:
+            f1 = ff_dic['forces'].flatten()
+            f2 = ref_dic['forces'].flatten()
+            f_mse = np.sum((f1-f2)**2)/len(f1)
+            f_r2 = compute_r2(f1, f2)
+        if options[2]:
+            s1 = ff_dic['stress'].flatten()
+            s2 = ref_dic['stress'].flatten()
+            f_mse = np.sum((s1-s2)**2)/len(s1)
+            f_r2 = compute_r2(s1, s2)
+        return e_diff, f_mse, f_r2, s_mse, s_r2
+ 
+    
     def evaluate_multi_references(self, ref_dics, parameters):
         """
         Calculate scores for multiple reference structures
@@ -1265,7 +1304,7 @@ class ForceFieldParameters:
             for i, ref_dic in enumerate(ref_dics):
                 structure, options = ref_dic['structure'], ref_dic['options']
                 #print(lmp_strucs[i].box)
-                structure = self.ff.reset_lammps_cell(structure)
+                structure = reset_lammps_cell(structure)
                 box = structure.cell.cellpar()
                 coordinates = structure.get_positions()
 
@@ -1350,10 +1389,6 @@ class ForceFieldParameters:
         """
         ref_dics = []
 
-        # Always reset the cell to make sure that force will be consistent
-        for struc in strucs: 
-            struc = self.ff.reset_lammps_cell(struc)
-
         if self.ncpu == 1:
             for struc in strucs: 
                 dics = self.augment_reference(struc, 
@@ -1382,11 +1417,6 @@ class ForceFieldParameters:
                 for result in results:
                     res = result.result()
                     ref_dics.extend(res)
-
-        # Important, must reset structure cell to lammps setting
-        for ref_dic in ref_dics:
-            structure = ref_dic['structure']
-            ref_dic['structure'] = self.ff.reset_lammps_cell(structure)
 
         return ref_dics
 

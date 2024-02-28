@@ -115,16 +115,8 @@ class forcefield:
         """
         set the cell into lammps format
         """
-        from ase.calculators.lammpslib import convert_cell
-
-        atoms = atoms0.copy()
-        mat, coord_transform = convert_cell(atoms0.cell)
-        if coord_transform is not None:
-            pos = np.dot(atoms0.positions, coord_transform.T)
-            atoms.set_cell(mat.T)
-            atoms.set_positions(pos)
-        return atoms
-
+        from ost.utils import reset_lammps_cell
+        return reset_lammps_cell(atoms0)
 
     def update_parameters(self, parameters):
         """

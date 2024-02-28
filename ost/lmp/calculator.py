@@ -194,6 +194,7 @@ class LAMMPSCalculatorMixIn:
         thermo = self.lmp.last_run[-1]
         energy = float(thermo.TotEng[-1]) * units.kcal/units.mol
         stress = np.zeros(6)
+        # traditional Voigt order (xx, yy, zz, yz, xz, xy)
         stress_vars = ['pxx', 'pyy', 'pzz', 'pyz', 'pxz', 'pxy']
         for i, var in enumerate(stress_vars):
             stress[i] = self.lmp.variables[var].value
@@ -588,6 +589,7 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
         lmp_in=None,
         lmp_dat=None,
         skip_dump = True,
+        coulcut = False,
         *args,
         **lwargs,
     ):
@@ -598,6 +600,7 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
         self.lin = f"{base}.in"
         self.ldat = f"{base}.dat"
         self.dumpdir = dumpdir
+        self.coulcut = coulcut
 
         self.nproc = nproc
         if self.nproc > 1:

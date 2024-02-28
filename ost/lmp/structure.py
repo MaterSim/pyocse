@@ -74,7 +74,9 @@ kspace_modify gewald {gewald:} mesh {fftx:} {ffty:} {fftz:} order 6
 
     @property
     def pair_ljcoul(self):
-        if hasattr(self, "ljmode") and self.ljmode == "charmmfsw":
+        if hasattr(self, 'coulcut') and self.coulcut:
+            return f"pair_style lj/cut/coul/cut {self.cutoff_ljout} {self.cutoff_coul}"
+        elif hasattr(self, "ljmode") and self.ljmode == "charmmfsw":
             return f"pair_style lj/{self.ljmode}/coul/long {self.cutoff_ljin} {self.cutoff_ljout} {self.cutoff_coul}"
         else:
             return f"pair_style lj/cut/coul/long {self.cutoff_ljout} {self.cutoff_coul}"
@@ -144,7 +146,8 @@ kspace_modify gewald {gewald:} mesh {fftx:} {ffty:} {fftz:} order 6
                 if i + 1 == len(lines):
                     [x, y, z] = self.fftgrid()
                     #print('update', len(dir(self)))
-                    of.write("kspace_modify gewald {:f} mesh {:d} {:d} {:d} order 6\n".format(self.gewald(), x, y, z))
+                    if not hasattr(self, 'coulcut') or (hasattr(self, 'coulcut') and not self.coulcut):
+                        of.write("kspace_modify gewald {:f} mesh {:d} {:d} {:d} order 6\n".format(self.gewald(), x, y, z))
                 else:
                     of.write(line+'\n')
             #of.write('run 0')
