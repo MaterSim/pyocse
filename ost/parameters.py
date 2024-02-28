@@ -284,8 +284,8 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
     """
     parallel version
     """
-    coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
-    dxs = [0.05, 0.075, 0.010]
+    coefs_stress = [0.85, 0.92, 1.08, 1.18, 1.25]
+    dxs = [0.01, 0.02, 0.03]
 
     pwd = os.getcwd()
     os.chdir(folder)
@@ -1533,6 +1533,45 @@ class ForceFieldParameters:
             ax.legend()
 
         return axes
+
+    def generate_report(self, ref_dics, parameters):
+        """
+        run quick report about the performance of each reference structure
+
+        Args:
+            ref_dics:
+            parameters:
+
+        Returns:
+            Printed values in terms of Energy/Forces/Stress tensors.
+        """
+        self.update_ff_parameters(parameters)
+        for i, ref_dic in enumerate(ref_dics):
+            # Remove the templates
+            self.ase_templates = {}
+            self.lmp_dat = {}
+
+            ff_dic = self.evaluate_ff_single(ref_dic['structure'])
+            e1 = ff_dic['energy']/ff_dic['replicate'] + parameters[-1]
+            e2 = ref_dic['energy']/ff_dic['replicate']
+            print('\nStructure {:3d}'.format(i))
+            print('Energy_ff_ref: {:8.3f} {:8.3f} {:8.3f}'.format(e1, e2, e1-e2))
+
+            if ref_dic['options'][1]:
+                f1 = ff_dic['forces'].flatten()
+                f2 = ref_dic['forces'].flatten()
+                rmse = np.sum((f1-f2)**2)/len(f2)
+                r2 = compute_r2(f1, f2)
+                print('Forces-R2-MSE: {:8.3f} {:8.3f}'.format(r2, rmse))
+
+            if ref_dic['options'][2]:
+                s1 = ff_dic['stress']
+                s2 = ref_dic['stress']
+                rmse = np.sum((s1-s2)**2)/len(s2)
+                r2 = compute_r2(s1, s2)
+                print('Stress_ff    : {:8.3f}{:9.3f}{:9.3f}{:9.3f}{:9.3f}{:9.3f}'.format(*s1))
+                print('Stress_ref   : {:8.3f}{:9.3f}{:9.3f}{:9.3f}{:9.3f}{:9.3f}'.format(*s2))
+ 
 
 
 if __name__ == "__main__":
