@@ -284,7 +284,7 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
     """
     parallel version
     """
-    coefs_stress = [0.85, 0.92, 1.08, 1.18, 1.25]
+    coefs_stress = [0.80, 0.85, 0.92, 1.08, 1.18, 1.25]
     dxs = [0.01, 0.02, 0.03]
 
     pwd = os.getcwd()
@@ -1463,7 +1463,7 @@ class ForceFieldParameters:
             quantity (str): e.g. 'bond-1', 'angles-1', 'vdW-1', 'charges'
         """
         term = term.split('-')
-        if len(term) == 1: # applied to charge
+        if len(term) == 1: # applied to charge/proper
             term, seq = term[0], 0
         else: # applied for bond/angle/proper/vdW
             term, seq = term[0], int(term[1])
@@ -1517,12 +1517,21 @@ class ForceFieldParameters:
         (r2_eng, r2_for, r2_str) = r2_values 
         print(r2_values)
  
-        label1 = 'Energy {:s}: {:.4f} [{:.4f}]'.format(label, mse_eng, r2_eng)
-        label2 = 'Forces {:s}: {:.4f} [{:.4f}]'.format(label, mse_for, r2_for)
-        label3 = 'Stress {:s}: {:.4f} [{:.4f}]'.format(label, mse_str, r2_str)
-        print('RMSE (eV/molecule)', label1)
-        print('RMSE (eV/A)', label2)
-        print('RMSE (GPa)', label3)
+        label1 = '{:s}. Energy [eV/mole] ({:d})\n'.format(label, len(ff_eng))
+        label1 += 'RMSE: {:.4f}\n'.format(mse_eng)
+        label1 += 'R2:   {:.4f}'.format(r2_eng)
+
+        label2 = '{:s}. Forces [eV/A] ({:d})\n'.format(label, len(ff_force))
+        label2 += 'RMSE: {:.4f}\n'.format(mse_for)
+        label2 += 'R2:   {:.4f}'.format(r2_for)
+
+        label3 = '{:s}. Stress [GPa] ({:d})\n'.format(label, len(ff_stress))
+        label3 += 'RMSE: {:.4f}\n'.format(mse_str)
+        label3 += 'R2:   {:.4f}'.format(r2_str)
+
+        print(label1)
+        print(label2)
+        print(label3)
         axes[0].scatter(ref_eng, ff_eng, s=size, label=label1)
         axes[1].scatter(ref_force, ff_force, s=size, label=label2)
         axes[2].scatter(ref_stress, ff_stress, s=size, label=label3)
