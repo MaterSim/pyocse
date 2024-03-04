@@ -8,6 +8,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 from scipy.optimize import minimize
 from math import ceil
+import matplotlib.pyplot as plt
 
 from ase import Atoms
 from ase.optimize.fire import FIRE
@@ -1097,10 +1098,11 @@ class ForceFieldParameters:
 
         return res.x, res.fun, values, res.nfev
 
-    def optimize_offset(self, ref_dics, parameters0=None, steps=100, guess=False):
+    def optimize_offset(self, ref_dics, parameters0=None):
         """
         To rewrite, no need to evalute Force again
         Approximate the offset of energy between FF and Reference evaluators
+        mean(engs_ref-engs_ff)
 
         Args:
             ref_dics (dict): reference data dictionary
@@ -1115,26 +1117,14 @@ class ForceFieldParameters:
         else:
             assert(len(parameters0) == len(self.params_init))
 
-        # update FF parameters and setup lmp_in
-        self.update_ff_parameters(parameters0)
-        lmp_in = self.ff.get_lammps_in()
-
-        if guess:
-            x, _ = self.optimize_offset(ref_dics[:1], parameters0, steps=10)
-        else:
-            x = [parameters0[-1]]
-
-        def fun(x, ref_dics, lmp_in):
-            return self.get_objective(ref_dics, x[0], E_only=True, lmp_in=lmp_in)
-
-        res = minimize(fun, 
-                       x, 
-                       args=(ref_dics, lmp_in), 
-                       options={'maxiter': steps})
-
-        print("Optimized offset", res.x[0]) #; import sys; sys.exit()
-        parameters0[-1] = res.x[0]
-        return res.x[0], parameters0
+        results = self.evaluate_multi_references(ref_dics, parameters0)
+        (ff_values, ref_values, _, _) = results
+        (ff_eng, _, _) = ff_values 
+        (ref_eng, _, _) = ref_values 
+        offset = np.mean(ref_eng - ff_eng)
+        print("optimized offset", np.mean(ff_eng - ref_eng))#; import sys; sys.exit()
+        parameters0[-1] = offset
+        return offset, parameters0
 
 
     def load_parameters(self, filename):
@@ -1513,7 +1503,6 @@ class ForceFieldParameters:
         """
         plot the whole FF parameters
         """
-        import matplotlib.pyplot as plt
 
         grid_size = (len(terms), 2)
         fig = plt.figure(figsize=figsize)
@@ -1529,8 +1518,36 @@ class ForceFieldParameters:
         plt.title('.'.join(self.smiles))
         plt.savefig(figname)
 
+    def plot_ff_results(self, figname, ref_dics, params1, params2=None, labels=None):
+        """
+        plot the ff performance results
 
-    def plot_ff_results(self, axes, parameters, ref_dics, label='Init', size=None):
+        Args:
+            figname (str): figname
+            ref_dics (list): list of references
+            params1 (array): parameters
+            params2 (array): 2nd parameter set
+            labels: labels
+
+        Return:
+            performance figure and the error dictionaries
+        """
+        if params2 is None:
+            if labels is None: labels = 'Opt'
+            fig, axes = plt.subplots(1, 3, figsize=(16, 5)) 
+            _, err_dict = self._plot_ff_results(axes, params1, ref_dics, label=labels)
+            plt.savefig(figname)
+            return err_dict
+        else:
+            if labels is None: labels = ['Ini', 'Opt']
+            fig, axes = plt.subplots(2, 3, figsize=(16, 8))
+            _, err_dict1 = self._plot_ff_results(axes[0], params1, ref_dics, label=labels[0]) 
+            _, err_dict2 = self._plot_ff_results(axes[1], params2, ref_dics, label=labels[1])
+            plt.savefig(figname)
+            return (err_dict1, err_dict2)
+
+
+    def _plot_ff_results(self, axes, parameters, ref_dics, label='Init', size=None):
         """
         Plot the results of FF prediction as compared to the references in
         terms of Energy, Force and Stress values.
@@ -1553,21 +1570,24 @@ class ForceFieldParameters:
         (r2_eng, r2_for, r2_str) = r2_values 
         print(r2_values)
  
-        label1 = '{:s}. Energy [eV/mole] ({:d})\n'.format(label, len(ff_eng))
+        label1 = '{:s}. Energy ({:d})\n'.format(label, len(ff_eng))
+        label1 += 'Unit: [eV/mole]\n'
         label1 += 'RMSE: {:.4f}\n'.format(mse_eng)
         label1 += 'R2:   {:.4f}'.format(r2_eng)
 
-        label2 = '{:s}. Forces [eV/A] ({:d})\n'.format(label, len(ff_force))
+        label2 = '{:s}. Forces ({:d})\n'.format(label, len(ff_force))
+        label2 += 'Unit: [eV/A]\n'
         label2 += 'RMSE: {:.4f}\n'.format(mse_for)
         label2 += 'R2:   {:.4f}'.format(r2_for)
 
-        label3 = '{:s}. Stress [GPa] ({:d})\n'.format(label, len(ff_stress))
+        label3 = '{:s}. Stress ({:d})\n'.format(label, len(ff_stress))
+        label3 += 'Unit: [GPa]\n'
         label3 += 'RMSE: {:.4f}\n'.format(mse_str)
         label3 += 'R2:   {:.4f}'.format(r2_str)
 
-        print(label1)
-        print(label2)
-        print(label3)
+        print('\n', label1)
+        print('\n', label2)
+        print('\n', label3)
         axes[0].scatter(ref_eng, ff_eng, s=size, label=label1)
         axes[1].scatter(ref_force, ff_force, s=size, label=label2)
         axes[2].scatter(ref_stress, ff_stress, s=size, label=label3)
@@ -1575,13 +1595,14 @@ class ForceFieldParameters:
         for ax in axes:
             ax.set_xlabel('Reference')
             ax.set_ylabel('FF')
-            ax.legend()
+            ax.legend(loc=2)
         
         err_dict = {
                     'rmse_values': (mse_eng, mse_for, mse_str),
                     'r2_values': (r2_eng, r2_for, r2_str),
                    }
         return axes, err_dict
+
 
     def generate_report(self, ref_dics, parameters):
         """
