@@ -281,7 +281,7 @@ def evaluate_ref_single(structure, calculator, natoms_per_unit,
     structure.set_calculator() # reset calculator to None
     return ref_dic
 
-def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder, fmax=0.1):
+def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder, logfile='-', fmax=0.1):
     """
     parallel version
     """
@@ -299,24 +299,29 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
                                            calculator, 
                                            steps, 
                                            N_vibs,
-                                           n_atoms_per_unit))
+                                           n_atoms_per_unit,
+                                           logfile,
+                                           fmax))
 
     os.chdir(pwd)
     return ref_dics
 
-def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_unit, fmax=0.1):
+def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_unit, logfile='-', fmax=0.1):
     """
     parallel version
     """
-    coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
-    dxs = [0.025, 0.050, 0.075]
+    #coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
+    #dxs = [0.025, 0.050, 0.075]
+    coefs_stress = [0.80, 0.85, 0.92, 1.08, 1.18, 1.25]
+    dxs = [0.01, 0.02, 0.03]
+
 
     ref_dics = []
     print('# Relaxation to get the ground state: 1')
     ref_structure.set_calculator(calculator)
     ref_structure.set_constraint(FixSymmetry(ref_structure))
     ecf = ExpCellFilter(ref_structure)
-    dyn = FIRE(ecf, a=0.1)
+    dyn = FIRE(ecf, a=0.1, logfile=logfile)
     dyn.run(fmax=fmax, steps=steps)
     ref_structure.set_constraint()
 
@@ -399,7 +404,7 @@ class ForceFieldParameters:
             f_coef (float): coefficients for forces
             s_coef (float): coefficients for stress
         """
-
+        self.smiles = smiles
         self.ff = forcefield(smiles, style, chargemethod)
         # only works for 1:1 ratio cocrystal for now
         self.natoms_per_unit = sum([len(mol.atoms) for mol in self.ff.molecules])
@@ -669,13 +674,15 @@ class ForceFieldParameters:
         s += "FF_code:    {:s}\n".format(self.ff_evaluator)
         s += "Ref_code:   {:s}\n".format(self.ref_evaluator)
         s += "N_CPU:       {:3d}\n".format(self.ncpu)
+        s += "F_coef:      {:.3f}\n".format(self.f_coef)
+        s += "S_coef:      {:.3f}\n".format(self.s_coef)
         return s
 
     def __repr__(self):
         return str(self)
 
 
-    def augment_reference(self, ref_structure, fmax=0.1, steps=250, N_vibs=10):
+    def augment_reference(self, ref_structure, fmax=0.1, steps=250, N_vibs=10, logfile='-'):
         """
         Generate more reference data based on input structure, including
         1. Fully optimized structue
@@ -698,6 +705,7 @@ class ForceFieldParameters:
                                   steps, 
                                   N_vibs, 
                                   self.natoms_per_unit,
+                                  logfile,
                                   fmax)
 
     #@timeit
@@ -1146,7 +1154,7 @@ class ForceFieldParameters:
             raise ValueError("Unsupported file format")
 
 
-    def export_parameters(self, filename='parameters.xml', parameters=None):
+    def export_parameters(self, filename='parameters.xml', parameters=None, err_dict=None):
         """
         Export the parameters to the xml file
 
@@ -1169,6 +1177,13 @@ class ForceFieldParameters:
                 else:  # For 1D arrays, convert to list
                     val = val.tolist()
             child.text = str(val)
+
+        # Export error values
+        if err_dict is not None:
+            ref_elem = ET.SubElement(root, 'error')
+            for key, val in err_dict.items():
+                child = ET.SubElement(ref_elem, key)
+                child.text = str(list(val))
 
         # Use prettify to get a pretty-printed XML string
         pretty_xml = prettify(root)
@@ -1373,7 +1388,7 @@ class ForceFieldParameters:
         return ff_values, ref_values, rmse_values, r2_values
        
 
-    def add_multi_references(self, strucs, augment=True, steps=120, N_vibs=3):
+    def add_multi_references(self, strucs, augment=True, steps=120, N_vibs=3, logfile='-'):
         """
         Add multiple references to training
 
@@ -1392,7 +1407,8 @@ class ForceFieldParameters:
             for struc in strucs: 
                 dics = self.augment_reference(struc, 
                                               steps=steps, 
-                                              N_vibs=N_vibs)
+                                              N_vibs=N_vibs,
+                                              logfile=logfile)
                 ref_dics.extend(dics)
         else:
             N_cycle = int(np.ceil(len(strucs)/self.ncpu))
@@ -1408,7 +1424,8 @@ class ForceFieldParameters:
                                   steps,
                                   N_vibs,
                                   self.natoms_per_unit, 
-                                  folder))
+                                  folder,
+                                  logfile))
             
             with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
                 results = [executor.submit(augment_ref_par, *p) for p in args_list]
@@ -1449,9 +1466,9 @@ class ForceFieldParameters:
         return self.add_multi_references(strucs, augment, steps, N_vibs)
 
 
-    def plot_ff_parameters(self, ax, parameters1, parameters2=None, term='bond-1', width=0.35):
+    def _plot_ff_parameters(self, ax, parameters1, parameters2=None, term='bond-1', width=0.35):
         """
-        plot the parameters in bar plot style
+        plot the individual parameters in bar plot style
         If two set of parameters are given, show the comparison
 
         Args:
@@ -1490,6 +1507,27 @@ class ForceFieldParameters:
             ax.set_ylabel(term)
         ax.set_xticks([])
         ax.legend()
+
+    def plot_ff_parameters(self, figname, params1, params2=None, figsize=(10, 16), 
+                terms=['bond', 'angle', 'proper', 'vdW', 'charge']):
+        """
+        plot the whole FF parameters
+        """
+        import matplotlib.pyplot as plt
+
+        grid_size = (len(terms), 2)
+        fig = plt.figure(figsize=figsize)
+        for i, term in enumerate(terms):
+            if term in ['charge', 'proper']:
+                ax = plt.subplot2grid(grid_size, (i, 0), colspan=2, fig=fig)
+                self._plot_ff_parameters(ax, params1, params2, term=term)
+            else:
+                ax1 = plt.subplot2grid(grid_size, (i, 0), fig=fig)
+                ax2 = plt.subplot2grid(grid_size, (i, 1), fig=fig)
+                self._plot_ff_parameters(ax1, params1, params2, term=term+'-1')
+                self._plot_ff_parameters(ax2, params1, params2, term=term+'-2')
+        plt.title('.'.join(self.smiles))
+        plt.savefig(figname)
 
 
     def plot_ff_results(self, axes, parameters, ref_dics, label='Init', size=None):
@@ -1538,8 +1576,12 @@ class ForceFieldParameters:
             ax.set_xlabel('Reference')
             ax.set_ylabel('FF')
             ax.legend()
-
-        return axes
+        
+        err_dict = {
+                    'rmse_values': (mse_eng, mse_for, mse_str),
+                    'r2_values': (r2_eng, r2_for, r2_str),
+                   }
+        return axes, err_dict
 
     def generate_report(self, ref_dics, parameters):
         """
