@@ -3,6 +3,7 @@ from xml.dom import minidom
 import ast
 import os, time
 from copy import deepcopy
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 from scipy.optimize import minimize
@@ -861,7 +862,6 @@ class ForceFieldParameters:
                                   obj,
                                   ))
             
-            from concurrent.futures import ProcessPoolExecutor
             with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
                 results = [executor.submit(evaluate_ff_par, *p) for p in args_list]
                 for result in results:
@@ -1324,7 +1324,7 @@ class ForceFieldParameters:
             args_list = []
             for i in range(self.ncpu):
                 folder = self.get_label(i)
-                id1 = i*N_cycle
+                id1 = i * N_cycle
                 id2 = min([id1+N_cycle, len(ref_dics)])
                 #print(i, id1, id2, len(ref_dics))
                 os.makedirs(folder, exist_ok=True)
@@ -1338,7 +1338,6 @@ class ForceFieldParameters:
                                   self.s_coef, 
                                   folder))
             
-            from concurrent.futures import ProcessPoolExecutor
             with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
                 results = [executor.submit(evaluate_ff_error_par, *p) for p in args_list]
                 for result in results:
@@ -1411,7 +1410,6 @@ class ForceFieldParameters:
                                   self.natoms_per_unit, 
                                   folder))
             
-            from concurrent.futures import ProcessPoolExecutor
             with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
                 results = [executor.submit(augment_ref_par, *p) for p in args_list]
                 for result in results:
