@@ -74,7 +74,8 @@ def xml_to_dict_list(filename):
             text = child.text.strip()
             # Check if the field should be converted back to an array
             if key in ['lattice', 'position', 'forces', 'numbers', 'stress',
-                       'bond', 'angle', 'proper', 'vdW', 'charge', 'offset']:
+                       'bond', 'angle', 'proper', 'vdW', 'charge', 'offset',
+                       'rmse_values', 'r2_values']:
 
                 if text != 'None':
                     #print(text)
@@ -286,8 +287,8 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
     """
     parallel version
     """
-    coefs_stress = [0.80, 0.85, 0.92, 1.08, 1.18, 1.25]
-    dxs = [0.01, 0.02, 0.03]
+    #coefs_stress = [0.85, 0.92, 1.08, 1.18, 1.25]
+    #dxs = [0.01, 0.02, 0.03]
 
     pwd = os.getcwd()
     os.chdir(folder)
@@ -313,7 +314,7 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
     """
     #coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
     #dxs = [0.025, 0.050, 0.075]
-    coefs_stress = [0.80, 0.85, 0.92, 1.08, 1.18, 1.25]
+    coefs_stress = [0.85, 0.92, 1.10, 1.25]
     dxs = [0.01, 0.02, 0.03]
 
 
@@ -330,7 +331,7 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
     cell = ref_structure.get_cell_lengths_and_angles()[:3]
     supercell = [1, 1, 1]
     for ax in range(3):
-        supercell[ax] = int(ceil(9.0/cell[ax]))
+        supercell[ax] = int(ceil(6.5/cell[ax])) # to save some time?
     ref_structure *= supercell
     ref_structure = reset_lammps_cell(ref_structure)
 
@@ -370,6 +371,7 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
                                           [True, True, False])
             ref_dic['tag'] = 'vibration'
             ref_dics.append(ref_dic)
+    print('# Finalized data augmentation')
 
     return ref_dics
 
@@ -730,19 +732,21 @@ class ForceFieldParameters:
         #print('Final'); print(lmp_strucs[0].box); print(lmp_strucs[-1].box); import sys; sys.exit()
         return lmp_strucs, lmp_dats
 
-    def get_lmp_input_from_structure(self, structure):
+    def get_lmp_input_from_structure(self, structure, set_template=True):
 
         replicate = len(structure)/self.natoms_per_unit
         if replicate in self.ase_templates.keys():
             lmp_struc = self.ase_templates[replicate]
+            lmp_dat = self.lmp_dat[replicate]
         else:
             lmp_struc = self.ff.get_ase_lammps(structure)
             dat_head = lmp_struc._write_dat_head()
             dat_prm = lmp_struc._write_dat_parameters()
             dat_connect, _, _, _ = lmp_struc._write_dat_connects()
-            self.lmp_dat[replicate] = [dat_head, dat_prm, dat_connect]
-            self.ase_templates[replicate] = lmp_struc
-        lmp_dat = self.lmp_dat[replicate]
+            lmp_dat = [dat_head, dat_prm, dat_connect]
+            if set_template:
+                self.lmp_dat[replicate] = lmp_dat
+                self.ase_templates[replicate] = lmp_struc
         return lmp_struc, lmp_dat
 
     #@timeit
@@ -762,6 +766,8 @@ class ForceFieldParameters:
         """
 
         if type(lmp_struc) == Atoms:
+            self.ase_templates = {}
+            self.lmp_dat = {}
             lmp_struc, lmp_dat = self.get_lmp_input_from_structure(lmp_struc)
         if box is not None: lmp_struc.box = box
         if positions is not None: lmp_struc.coordinates = positions
@@ -870,7 +876,7 @@ class ForceFieldParameters:
                                   folder,
                                   obj,
                                   ))
-            
+
             with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
                 results = [executor.submit(evaluate_ff_par, *p) for p in args_list]
                 for result in results:
@@ -992,7 +998,7 @@ class ForceFieldParameters:
 
         arg_lists = (ref_dics, parameters0, e_offset, ids, obj, charges)
         # Actual optimization
-        print("Init obj", x, objective_function_wrapper(x, *arg_lists))#; import sys; sys.exit()
+        #print("Init obj", x, objective_function_wrapper(x, *arg_lists))#; import sys; sys.exit()
 
         return x, bounds, objective_function_wrapper, arg_lists
 
@@ -1054,7 +1060,7 @@ class ForceFieldParameters:
                 current_x, current_fun = candidate_x, candidate_fun
 
             t *= alpha
-            if self.verbose:
+            if self.verbose and i % 10 == 0:
                 print("Step {:4d} {:5.2f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))#, current_x)
         print("Best results after {:d} steps: {:.4f}".format(steps, best_fun))
         #print("Best fun", obj_fun(best_x, *fun_args))#; import sys; sys.exit()
@@ -1079,9 +1085,18 @@ class ForceFieldParameters:
         """
         x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0, obj)
 
-        def my_callback(xk):
-            print(f"Solution: {xk[:2]}, Objective: {last_function_value}")
-        callback = my_callback if self.verbose else None
+        #def my_callback(xk):
+        #    print(f"Solution: {xk[:2]}, Objective: {last_function_value}")
+        class CallbackFunction:
+            def __init__(self):
+                self.iteration = 0  # Initialize iteration count
+
+            def callback(self, xk):
+                self.iteration += 1  # Increment iteration count
+                if self.iteration % 10 == 0:  # Check if it's a multiple of 10
+                    print("Step {:4d} {:.4f}".format(self.iteration, last_function_value))
+
+        callback = CallbackFunction() if self.verbose else None
 
         res = minimize(#obj_fun,
                        obj_fun, #objective_function_wrapper,
@@ -1090,7 +1105,7 @@ class ForceFieldParameters:
                        args = fun_args, #(ref_dics, parameters0, e_offset, ids, charges),
                        options = {'maxiter': steps, 'disp': True},
                        bounds = bounds,
-                       callback = callback,
+                       callback = callback.callback,
                        )
 
         # Rearrange the optimized parameters to the list of values
@@ -1122,8 +1137,8 @@ class ForceFieldParameters:
         (ff_eng, _, _) = ff_values 
         (ref_eng, _, _) = ref_values 
         offset = np.mean(ref_eng - ff_eng)
-        print("optimized offset", np.mean(ff_eng - ref_eng))#; import sys; sys.exit()
-        parameters0[-1] = offset
+        parameters0[-1] += offset
+        print("optimized offset", parameters0[-1])#; import sys; sys.exit()
         return offset, parameters0
 
 
@@ -1137,9 +1152,16 @@ class ForceFieldParameters:
         if filename.endswith('.xml'):
             dics = xml_to_dict_list(filename)[0]
             parameters = []
+            errors = {}
             for term in self.terms:
                 parameters.extend(dics[term].tolist())
-            return np.array(parameters)
+            if 'rmse_values' in dics.keys():
+                errors['rmse_values'] = dics['rmse_values']
+            for key in ['rmse_values', 'r2_values']:
+                if key in dics.keys():
+                    errors[key] = dics[key]
+
+            return np.array(parameters), errors
         else:
             raise ValueError("Unsupported file format")
 
@@ -1170,7 +1192,7 @@ class ForceFieldParameters:
 
         # Export error values
         if err_dict is not None:
-            ref_elem = ET.SubElement(root, 'error')
+            #ref_elem = ET.SubElement(root, 'error')
             for key, val in err_dict.items():
                 child = ET.SubElement(ref_elem, key)
                 child.text = str(list(val))
@@ -1348,11 +1370,11 @@ class ForceFieldParameters:
                 for result in results:
                     res = result.result()
                     ff_eng.extend(res[0])
-                    ff_force.extend(res[1])
-                    ff_stress.extend(res[2])
+                    if len(res[1]) > 0: ff_force.extend(res[1])
+                    if len(res[2]) > 0: ff_stress.extend(res[2])
                     ref_eng.extend(res[3])
-                    ref_force.extend(res[4])
-                    ref_stress.extend(res[5])
+                    if len(res[4]) > 0: ref_force.extend(res[4])
+                    if len(res[5]) > 0: ref_stress.extend(res[5])
 
         ff_eng = np.array(ff_eng)
         ff_force = np.array(ff_force).flatten()
@@ -1393,35 +1415,48 @@ class ForceFieldParameters:
         """
         ref_dics = []
 
-        if self.ncpu == 1:
-            for struc in strucs: 
-                dics = self.augment_reference(struc, 
-                                              steps=steps, 
-                                              N_vibs=N_vibs,
-                                              logfile=logfile)
-                ref_dics.extend(dics)
+        if not augment:
+            for struc in strucs:
+                ref_structure = reset_lammps_cell(struc)
+
+                ref_dic = evaluate_ref_single(ref_structure, 
+                                              self.calculator,
+                                              self.natoms_per_unit,
+                                              [True, True, True])
+                ref_dic['tag'] = 'single'
+                ref_dics.append(ref_dic)
+        # augment structures is more expensive
         else:
-            N_cycle = int(np.ceil(len(strucs)/self.ncpu))
-            args_list = []
-            for i in range(self.ncpu):
-                folder = self.get_label(i)
-                id1 = i*N_cycle
-                id2 = min([id1+N_cycle, len(strucs)])
-                os.makedirs(folder, exist_ok=True)
-                print("#parallel process", N_cycle, id1, id2)
-                args_list.append((strucs[id1:id2], 
-                                  self.calculator,
-                                  steps,
-                                  N_vibs,
-                                  self.natoms_per_unit, 
-                                  folder,
-                                  logfile))
-            
-            with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
-                results = [executor.submit(augment_ref_par, *p) for p in args_list]
-                for result in results:
-                    res = result.result()
-                    ref_dics.extend(res)
+            if self.ncpu == 1:
+                for struc in strucs: 
+                    dics = self.augment_reference(struc, 
+                                                  steps=steps, 
+                                                  N_vibs=N_vibs,
+                                                  logfile=logfile)
+                    ref_dics.extend(dics)
+
+            else:
+                N_cycle = int(np.ceil(len(strucs)/self.ncpu))
+                args_list = []
+                for i in range(self.ncpu):
+                    folder = self.get_label(i)
+                    id1 = i*N_cycle
+                    id2 = min([id1+N_cycle, len(strucs)])
+                    os.makedirs(folder, exist_ok=True)
+                    print("# parallel process", N_cycle, id1, id2)
+                    args_list.append((strucs[id1:id2], 
+                                      self.calculator,
+                                      steps,
+                                      N_vibs,
+                                      self.natoms_per_unit, 
+                                      folder,
+                                      logfile))
+                
+                with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+                    results = [executor.submit(augment_ref_par, *p) for p in args_list]
+                    for result in results:
+                        res = result.result()
+                        ref_dics.extend(res)
 
         return ref_dics
 
