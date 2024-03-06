@@ -1384,9 +1384,9 @@ class ForceFieldParameters:
         ref_force = np.array(ref_force).flatten()
         ref_stress = np.array(ref_stress)
 
-        mse_eng = np.sqrt(np.sum((ff_eng-ref_eng)**2))/len(ff_eng)
-        mse_for = np.sqrt(np.sum((ff_force-ref_force)**2))/len(ff_force)
-        mse_str = np.sqrt(np.sum((ff_stress-ref_stress)**2))/len(ff_stress)
+        mse_eng = np.sqrt(np.mean((ff_eng-ref_eng)**2))
+        mse_for = np.sqrt(np.mean((ff_force-ref_force)**2))
+        mse_str = np.sqrt(np.mean((ff_stress-ref_stress)**2))
 
         r2_eng = compute_r2(ff_eng, ref_eng)
         r2_for = compute_r2(ff_force, ref_force)
