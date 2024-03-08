@@ -1222,7 +1222,7 @@ class ForceFieldParameters:
         with open(filename, 'w') as f:
             f.write(pretty_xml)
 
-    def cut_reference(self, ref_dics, cutoff):
+    def cut_references(self, ref_dics, cutoff):
         """
         Cut the list of references by energy
         """
@@ -1236,8 +1236,22 @@ class ForceFieldParameters:
         for i, ref_dic in enumerate(ref_dics):
             if engs[i] < eng_min + cutoff:
                 _ref_dics.append(ref_dic)
-        print("Reduced references from {:d} to {:d}".format(N0, len(_ref_dics)))
+        print("Reduce references {:d} => {:d}".format(N0, len(_ref_dics)))
         return _ref_dics
+
+    def select_references(self, ref_dics, fields=['CSP', 'minimum']):
+        """
+        Cut the list of references by energy
+        """
+        assert(type(fields) == list)
+        N0 = len(ref_dics)
+        _ref_dics = []
+        for ref_dic in ref_dics:
+            if ref_dic['tag'] in fields:
+                _ref_dics.append(ref_dic)
+        print("Reduce references {:d} => {:d}".format(N0, len(_ref_dics)))
+        return _ref_dics
+
 
     def load_references(self, filename, reset_cell=False):
         """
@@ -1759,4 +1773,7 @@ if __name__ == "__main__":
     assert smiles[0] is not None
     params = ForceFieldParameters(smiles)
     print(params)
-    params.evaluate_ff_single(xtal.to_ase(resort=False))
+    params0 = params.params_init.copy()
+    ase_with_ff = params.get_ase_charmm(params0)
+    ase_with_ff.write_charmmfiles(base='pyxtal')
+    #params.evaluate_ff_single(xtal.to_ase(resort=False))

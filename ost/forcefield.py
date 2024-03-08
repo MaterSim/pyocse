@@ -108,7 +108,7 @@ class forcefield:
             atoms = LAMMPSStructure.from_structure(pd_struc)
         atoms.set_pbc(pbc)
         atoms.title = '.'.join(self.smiles)
-            
+
         return atoms._write_input(lmp_dat)
 
     def reset_lammps_cell(self, atoms0):
