@@ -89,7 +89,7 @@ def xml_to_dict_list(filename):
             elif key in ['options']:
                 value = ast.literal_eval(text) #print(value)
             else:
-                # Attempt to convert numeric values back to float/int, fall back to string
+                # Attempt to convert numeric values back to float/int
                 try:
                     value = float(text)
                     if value.is_integer():
@@ -114,7 +114,7 @@ def prettify(elem):
 
 def compute_r2(y_true, y_pred):
     """
-    Compute the R-squared (Coefficient of Determination) for the given actual and predicted values.
+    Compute the R-squared coefficient for the actual and predicted values.
 
     :param y_true: The actual values.
     :param y_pred: The predicted values by the regression model.
@@ -139,13 +139,13 @@ def compute_r2(y_true, y_pred):
 
 def get_lmp_efs(lmp_struc, lmp_in, lmp_dat):
     if not hasattr(lmp_struc, 'ewald_error_tolerance'):
-        #setattr(lmp_struc, 'ewald_error_tolerance', lmp_struc.DEFAULT_EWALD_ERROR_TOLERANCE)
         lmp_struc.complete()
     #print('get_lmp_efs', len(dir(lmp_struc)), hasattr(lmp_struc, 'ewald_error_tolerance'))
     calc = LAMMPSCalculator(lmp_struc, lmp_in=lmp_in, lmp_dat=lmp_dat)
     return calc.express_evaluation()
 
-def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only, natoms_per_unit, f_coef, s_coef, dir_name, obj):
+def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only,
+        natoms_per_unit, f_coef, s_coef, dir_name, obj):
     """
     parallel version
     """
@@ -183,7 +183,8 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only, na
     else:
         return (eng_arr, force_arr, stress_arr)
 
-def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, natoms_per_unit, f_coef, s_coef, dir_name, max_E=100):
+def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
+        natoms_per_unit, f_coef, s_coef, dir_name, max_E=1000.0, max_dE=1.25):
     """
     parallel version
     """
@@ -204,8 +205,8 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, nato
                                                 lmp_in,
                                                 natoms_per_unit)
         # Ignore the structures with unphysical energy values
-        if eng < max_E:
-
+        e_diff = eng/replicate + e_offset - ref_dic['energy']/replicate
+        if eng < max_E and abs(e_diff) < max_dE:
             ff_eng.append(eng/replicate + e_offset)
             ref_eng.append(ref_dic['energy']/replicate)
 
@@ -310,7 +311,6 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
 
     pwd = os.getcwd()
     os.chdir(folder)
-
     ref_dics = []
 
     for ref_structure in strucs:
@@ -401,13 +401,14 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
 def add_strucs_par(strs, smiles):
     strucs = []
     for _str in strs:
-        pmg = Structure.from_str(_str, fmt='cif')
-        c0 = pyxtal(molecular=True)
         try:
+            pmg = Structure.from_str(_str, fmt='cif')
+            c0 = pyxtal(molecular=True)
             c0.from_seed(pmg, molecules=smiles)
             strucs.append(c0.to_ase(resort=False))
         except:
             print("Skip a structure due to reading error")
+            print(_str)
     return strucs
 
 
@@ -1612,7 +1613,8 @@ class ForceFieldParameters:
                 results = [executor.submit(add_strucs_par, *p) for p in args_list]
                 for result in results:
                     res = result.result()
-                    strucs.extend(res)
+                    if len(res) > 0:
+                        strucs.extend(res)
 
         return self.add_multi_references(strucs, augment, steps, N_vibs)
 
