@@ -11,9 +11,8 @@ from math import ceil
 import matplotlib.pyplot as plt
 
 from ase import Atoms
-from ase.optimize.fire import FIRE
-from ase.constraints import ExpCellFilter
-from ase.spacegroup.symmetrize import FixSymmetry
+from pyxtal import pyxtal
+from pymatgen.core import Structure
 
 from ost.utils import reset_lammps_cell
 from ost.forcefield import forcefield
@@ -184,7 +183,7 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only, na
     else:
         return (eng_arr, force_arr, stress_arr)
 
-def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, natoms_per_unit, f_coef, s_coef, dir_name):
+def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, natoms_per_unit, f_coef, s_coef, dir_name, max_E=100):
     """
     parallel version
     """
@@ -204,17 +203,19 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, nato
                                                 lmp_dat,
                                                 lmp_in,
                                                 natoms_per_unit)
+        # Ignore the structures with unphysical energy values
+        if eng < max_E:
 
-        ff_eng.append(eng/replicate + e_offset)
-        ref_eng.append(ref_dic['energy']/replicate)
+            ff_eng.append(eng/replicate + e_offset)
+            ref_eng.append(ref_dic['energy']/replicate)
 
-        if options[1]:
-            ff_force.extend(force.tolist())
-            ref_force.extend(ref_dic['forces'].tolist())
+            if options[1]:
+                ff_force.extend(force.tolist())
+                ref_force.extend(ref_dic['forces'].tolist())
 
-        if options[2]:
-            ff_stress.extend(stress.tolist())
-            ref_stress.extend(ref_dic['stress'].tolist())
+            if options[2]:
+                ff_stress.extend(stress.tolist())
+                ref_stress.extend(ref_dic['stress'].tolist())
     os.chdir(pwd)
     return (ff_eng, ff_force, ff_stress, ref_eng, ref_force, ref_stress)
 
@@ -262,19 +263,32 @@ def obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef, obj):
     else:
         return (eng_arr, force_arr, stress_arr)
 
-
+def evaluate_ref_par(structures, calculator, natoms_per_unit,
+                        options=[True, True, True]):
+    """
+    evaluate the reference structure with the ref_evaluator
+    """
+    ref_dics = []
+    for struc in structures:
+        ref_dics.append(evaluate_ref_single(struc,
+                                      calculator,
+                                      natoms_per_unit,
+                                      options))
+    return ref_dics
 
 def evaluate_ref_single(structure, calculator, natoms_per_unit,
                         options=[True, True, True]):
     """
     evaluate the reference structure with the ref_evaluator
     """
+    structure = reset_lammps_cell(structure)
     ref_dic = {'structure': structure,
                'energy': None,
                'forces': None,
                'stress': None,
                'replicate': len(structure)/natoms_per_unit,
                'options': options,
+               'tag': 'CSP',
               }
     structure.set_calculator(calculator)
     if options[0]: # Energy
@@ -284,6 +298,7 @@ def evaluate_ref_single(structure, calculator, natoms_per_unit,
     if options[2]:
         ref_dic['stress'] = structure.get_stress()
     structure.set_calculator() # reset calculator to None
+
     return ref_dic
 
 def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder, logfile='-', fmax=0.1):
@@ -315,6 +330,11 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
     """
     parallel version
     """
+
+    from ase.optimize.fire import FIRE
+    from ase.constraints import ExpCellFilter
+    from ase.spacegroup.symmetrize import FixSymmetry
+
     #coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
     #dxs = [0.025, 0.050, 0.075]
     coefs_stress = [0.85, 0.92, 1.10, 1.25]
@@ -377,6 +397,18 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
     print('# Finalized data augmentation')
 
     return ref_dics
+
+def add_strucs_par(strs, smiles):
+    strucs = []
+    for _str in strs:
+        pmg = Structure.from_str(_str, fmt='cif')
+        c0 = pyxtal(molecular=True)
+        try:
+            c0.from_seed(pmg, molecules=smiles)
+            strucs.append(c0.to_ase(resort=False))
+        except:
+            print("Skip a structure due to reading error")
+    return strucs
 
 
 
@@ -1474,15 +1506,35 @@ class ForceFieldParameters:
         ref_dics = []
 
         if not augment:
-            for struc in strucs:
-                ref_structure = reset_lammps_cell(struc)
-
-                ref_dic = evaluate_ref_single(ref_structure,
+            if self.ncpu == 1:
+                for struc in strucs:
+                    ref_structure = reset_lammps_cell(struc)
+                    ref_dic = evaluate_ref_single(ref_structure,
                                               self.calculator,
                                               self.natoms_per_unit,
                                               [True, True, True])
-                ref_dic['tag'] = 'single'
-                ref_dics.append(ref_dic)
+                    ref_dic['tag'] = 'CSP'
+                    ref_dics.append(ref_dic)
+            else:
+                N_cycle = int(np.ceil(len(strucs)/self.ncpu))
+                args_list = []
+                for i in range(self.ncpu):
+                    folder = self.get_label(i)
+                    id1 = i*N_cycle
+                    id2 = min([id1+N_cycle, len(strucs)])
+                    os.makedirs(folder, exist_ok=True)
+                    print("# parallel process", N_cycle, id1, id2)
+                    args_list.append((strucs[id1:id2],
+                                      self.calculator,
+                                      self.natoms_per_unit,
+                                      [True, True, True]))
+
+                with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+                    results = [executor.submit(evaluate_ref_par, *p) for p in args_list]
+                    for result in results:
+                        res = result.result()
+                        ref_dics.extend(res)
+
         # augment structures is more expensive
         else:
             if self.ncpu == 1:
@@ -1534,67 +1586,79 @@ class ForceFieldParameters:
             list of reference dics
         """
         from pyxtal.util import parse_cif
-        from pyxtal import pyxtal
-        from pymatgen.core import Structure
-
         strs, engs = parse_cif(cif, eng=True)
-        ids = np.argsort(engs)
-        strucs = []
+        N_max = min([N_max, len(strs)])
+        ids = np.argsort(engs)[:N_max]
+        strs = [strs[id] for id in ids] # sort by eng
         smiles = [smi+'.smi' for smi in self.ff.smiles]
-        for i, id in enumerate(ids[:N_max]):
-            pmg = Structure.from_str(strs[id], fmt='cif')
-            c0 = pyxtal(molecular=True)
-            c0.from_seed(pmg, molecules=smiles)
-            strucs.append(c0.to_ase(resort=False))
+        strucs = []
+
+        if self.ncpu == 1:
+            for i, id in enumerate(ids):
+                pmg = Structure.from_str(strs[id], fmt='cif')
+                c0 = pyxtal(molecular=True)
+                c0.from_seed(pmg, molecules=smiles)
+                strucs.append(c0.to_ase(resort=False))
+        else:
+            N_cycle = int(np.ceil(len(strs)/self.ncpu))
+            args_list = []
+            for i in range(self.ncpu):
+                id1 = i*N_cycle
+                id2 = min([id1+N_cycle, len(strs)])
+                print("# parallel process", N_cycle, id1, id2)
+                args_list.append((strs[id1:id2], smiles))
+
+            with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+                results = [executor.submit(add_strucs_par, *p) for p in args_list]
+                for result in results:
+                    res = result.result()
+                    strucs.extend(res)
+
         return self.add_multi_references(strucs, augment, steps, N_vibs)
 
 
-    def _plot_ff_parameters(self, ax, parameters1, parameters2=None, term='bond-1', width=0.35):
+    def _plot_ff_parameters(self, ax, params, term='bond-1', width=0.35):
         """
         plot the individual parameters in bar plot style
-        If two set of parameters are given, show the comparison
 
         Args:
             ax: matplotlib axis
-            parameters1 (1D array): array of full FF parameters
-            parameters2 (1D array): array of full FF parameters
-            quantity (str): e.g. 'bond-1', 'angles-1', 'vdW-1', 'charges'
+            params (list): list of FF parameter arrays
+            term (str): e.g. 'bond-1', 'angles-1', 'vdW-1', 'charges'
         """
         term = term.split('-')
         if len(term) == 1: # applied to charge/proper
             term, seq = term[0], 0
         else: # applied for bond/angle/proper/vdW
             term, seq = term[0], int(term[1])
-        label1 = 'FF1-' + term
 
-        subpara1, _ , _ = self.get_sub_parameters(parameters1, [term])
-        if seq == 0:
-            data1 = subpara1[0]
-        else:
-            data1 = subpara1[0][seq-1::2]
-            label1 += '-' + str(seq)
-        ind = np.arange(len(data1))
-        ax.bar(ind, data1, width, color='b', label=label1)
-
-        if parameters2 is not None:
-            subpara2, _ , _ = self.get_sub_parameters(parameters2, [term])
-            label2 = 'FF2-' + term
+        for i, param in enumerate(params):
+            label = 'FF' + str(i) + '-' + term
+            subpara, _ , _ = self.get_sub_parameters(param, [term])
             if seq == 0:
-                data2 = subpara2[0]
+                data = subpara[0]
             else:
-                data2 = subpara2[0][seq-1::2]
-                label2 += '-' + str(seq)
-            ax.bar(ind + width, data2, width, color='r', label=label2)
+                data = subpara[0][seq-1::2]
+                label += '-' + str(seq)
+            ind = np.arange(len(data))
+            ax.bar(ind+i*width, data, width, label=label)
+
         if seq < 2:
             #ax.set_xlabel(term)
             ax.set_ylabel(term)
         ax.set_xticks([])
         ax.legend()
 
-    def plot_ff_parameters(self, figname, params1, params2=None, figsize=(10, 16),
+    def plot_ff_parameters(self, figname, params, figsize=(10, 16),
                 terms=['bond', 'angle', 'proper', 'vdW', 'charge']):
         """
         plot the whole FF parameters
+
+        Args:
+            figname (str): path of figname
+            params: list of parameters array
+            figsize:
+            terms: list of FF terms
         """
 
         grid_size = (len(terms), 2)
@@ -1602,42 +1666,43 @@ class ForceFieldParameters:
         for i, term in enumerate(terms):
             if term in ['charge', 'proper']:
                 ax = plt.subplot2grid(grid_size, (i, 0), colspan=2, fig=fig)
-                self._plot_ff_parameters(ax, params1, params2, term=term)
+                self._plot_ff_parameters(ax, params, term=term)
             else:
                 ax1 = plt.subplot2grid(grid_size, (i, 0), fig=fig)
                 ax2 = plt.subplot2grid(grid_size, (i, 1), fig=fig)
-                self._plot_ff_parameters(ax1, params1, params2, term=term+'-1')
-                self._plot_ff_parameters(ax2, params1, params2, term=term+'-2')
+                self._plot_ff_parameters(ax1, params, term=term+'-1')
+                self._plot_ff_parameters(ax2, params, term=term+'-2')
         plt.title('.'.join(self.smiles))
         plt.savefig(figname)
 
-    def plot_ff_results(self, figname, ref_dics, params1, params2=None, labels=None):
+    def plot_ff_results(self, figname, ref_dics, params, labels=None):
         """
         plot the ff performance results
 
         Args:
             figname (str): figname
             ref_dics (list): list of references
-            params1 (array): parameters
-            params2 (array): 2nd parameter set
+            params (list): list of parameter arrays
             labels: labels
 
         Return:
             performance figure and the error dictionaries
         """
-        if params2 is None:
+        if len(params) == 1:
             if labels is None: labels = 'Opt'
             fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-            _, err_dict = self._plot_ff_results(axes, params1, ref_dics, label=labels)
+            _, err_dic = self._plot_ff_results(axes, params[0], ref_dics, label=labels)
             plt.savefig(figname)
-            return err_dict
+            return [err_dic]
         else:
-            if labels is None: labels = ['Ini', 'Opt']
-            fig, axes = plt.subplots(2, 3, figsize=(16, 8))
-            _, err_dict1 = self._plot_ff_results(axes[0], params1, ref_dics, label=labels[0])
-            _, err_dict2 = self._plot_ff_results(axes[1], params2, ref_dics, label=labels[1])
+            if labels is None: labels = ['FF'+str(i) for i in range(len(params))]
+            fig, axes = plt.subplots(len(params), 3, figsize=(16, 4*len(params)))
+            err_dics = []
+            for i, param in enumerate(params):
+                _, err_dic = self._plot_ff_results(axes[i], param, ref_dics, label=labels[i])
+                err_dics.append(err_dic)
             plt.savefig(figname)
-            return (err_dict1, err_dict2)
+            return err_dics
 
 
     def _plot_ff_results(self, axes, parameters, ref_dics, label='Init', size=None):
