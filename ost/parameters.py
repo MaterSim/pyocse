@@ -1192,12 +1192,13 @@ class ForceFieldParameters:
         (ref_eng, _, _) = ref_values
 
         x = parameters0[-1]
+        if abs(x) < 1e-5: x = np.mean(ref_eng - ff_eng)
         def obj_fun(x, ff_eng, ref_eng):
             return -compute_r2(ff_eng + x, ref_eng)
 
         res = minimize(
                        obj_fun,
-                       x,
+                       [x],
                        method = 'Nelder-Mead',
                        args = (ff_eng, ref_eng),
                        options = {'maxiter': steps},
