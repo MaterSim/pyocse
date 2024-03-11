@@ -299,7 +299,7 @@ def evaluate_ref_single(structure, calculator, natoms_per_unit,
     if relax:
         structure.set_constraint(FixSymmetry(structure))
         ecf = ExpCellFilter(structure)
-        dyn = FIRE(ecf, a=0.1)
+        dyn = FIRE(ecf, a=0.1, logfile='-')
         dyn.run(fmax=0.1, steps=150)
         structure.set_constraint()
 
@@ -1604,7 +1604,7 @@ class ForceFieldParameters:
         strs, engs = parse_cif(cif, eng=True)
         N_max = min([N_max, len(strs)])
         ids = np.argsort(engs)[:N_max]
-        strs = [strs[id] for id in ids] # sort by eng
+        strs = [strs[id] for id in ids if engs[id] < 1000] # sort by eng
         smiles = [smi+'.smi' for smi in self.ff.smiles]
         strucs = []
 
