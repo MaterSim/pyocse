@@ -11,6 +11,10 @@ from math import ceil
 import matplotlib.pyplot as plt
 
 from ase import Atoms
+from ase.optimize.fire import FIRE
+from ase.constraints import ExpCellFilter
+from ase.spacegroup.symmetrize import FixSymmetry
+
 from pyxtal import pyxtal
 from pymatgen.core import Structure
 
@@ -278,7 +282,7 @@ def evaluate_ref_par(structures, calculator, natoms_per_unit,
     return ref_dics
 
 def evaluate_ref_single(structure, calculator, natoms_per_unit,
-                        options=[True, True, True]):
+                        options=[True, True, True], relax=False):
     """
     evaluate the reference structure with the ref_evaluator
     """
@@ -292,6 +296,13 @@ def evaluate_ref_single(structure, calculator, natoms_per_unit,
                'tag': 'CSP',
               }
     structure.set_calculator(calculator)
+    if relax:
+        structure.set_constraint(FixSymmetry(structure))
+        ecf = ExpCellFilter(structure)
+        dyn = FIRE(ecf, a=0.1)
+        dyn.run(fmax=0.1, steps=150)
+        structure.set_constraint()
+
     if options[0]: # Energy
         ref_dic['energy'] = structure.get_potential_energy()
     if options[1]: # forces
@@ -330,10 +341,6 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
     """
     parallel version
     """
-
-    from ase.optimize.fire import FIRE
-    from ase.constraints import ExpCellFilter
-    from ase.spacegroup.symmetrize import FixSymmetry
 
     #coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
     #dxs = [0.025, 0.050, 0.075]
@@ -444,6 +451,7 @@ class ForceFieldParameters:
             s_coef (float): coefficients for stress
         """
         self.smiles = smiles
+        self.ff_style = style
         self.ff = forcefield(smiles, style, chargemethod)
         # only works for 1:1 ratio cocrystal for now
         self.natoms_per_unit = sum([len(mol.atoms) for mol in self.ff.molecules])
@@ -748,14 +756,15 @@ class ForceFieldParameters:
                                   fmax)
 
     #@timeit
-    def evaluate_ref_single(self, structure, options=[True, True, True]):
+    def evaluate_ref_single(self, structure, options=[True, True, True], relax=False):
         """
         evaluate the reference structure with the ref_evaluator
         """
         return evaluate_ref_single(structure,
                                    self.calculator,
                                    self.natoms_per_unit,
-                                   options)
+                                   options,
+                                   relax)
 
 
     def get_lmp_inputs_from_ref_dics(self, ref_dics):
@@ -790,16 +799,22 @@ class ForceFieldParameters:
                            lmp_dat=None,
                            lmp_in=None,
                            box=None,
-                           positions=None):
+                           positions=None,
+                           parameters=None):
         """
         evaluate the reference structure with the ff_evaluatort
 
         Args:
-        - lmp_struc: ase structure
-        - options (list): [energy, forces, stress]
-        - lmp_dat
-        - lmp_in
+            lmp_struc: ase structure
+            options (list): [energy, forces, stress]
+            lmp_dat:
+            lmp_in:
+            box:
+            positions:
+            parameters:
         """
+        if parameters is not None:
+            self.update_ff_parameters(parameters)
 
         if type(lmp_struc) == Atoms:
             self.ase_templates = {}
@@ -1206,12 +1221,9 @@ class ForceFieldParameters:
             errors = {}
             for term in self.terms:
                 parameters.extend(dics[term].tolist())
-            if 'rmse_values' in dics.keys():
-                errors['rmse_values'] = dics['rmse_values']
-            for key in ['rmse_values', 'r2_values']:
+            for key in ['rmse_values', 'r2_values', 'ff_style']:
                 if key in dics.keys():
                     errors[key] = dics[key]
-
             return np.array(parameters), errors
         else:
             raise ValueError("Unsupported file format")
@@ -1247,6 +1259,8 @@ class ForceFieldParameters:
             for key, val in err_dict.items():
                 child = ET.SubElement(ref_elem, key)
                 child.text = str(list(val))
+        child = ET.SubElement(ref_elem, 'FF_style')
+        child.text = self.ff_style
 
         # Use prettify to get a pretty-printed XML string
         pretty_xml = prettify(root)
@@ -1748,6 +1762,8 @@ class ForceFieldParameters:
         print('\n', label1)
         print('\n', label2)
         print('\n', label3)
+        print('\nMin_values: {:.4f} {:.4f}'.format(ff_eng.min(),
+            ref_eng.min()))
         axes[0].scatter(ref_eng, ff_eng, s=size, label=label1)
         axes[1].scatter(ref_force, ff_force, s=size, label=label2)
         axes[2].scatter(ref_stress, ff_stress, s=size, label=label3)
@@ -1760,6 +1776,7 @@ class ForceFieldParameters:
         err_dict = {
                     'rmse_values': (mse_eng, mse_for, mse_str),
                     'r2_values': (r2_eng, r2_for, r2_str),
+                    'min_values': (ff_eng.min(), ref_eng.min()),
                    }
         return axes, err_dict
 
