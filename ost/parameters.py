@@ -188,7 +188,7 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only,
         return (eng_arr, force_arr, stress_arr)
 
 def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
-        natoms_per_unit, f_coef, s_coef, dir_name, max_E=1000.0, max_dE=1.25):
+        natoms_per_unit, f_coef, s_coef, dir_name, max_dE=1.25, max_E=1000.0):
     """
     parallel version
     """
@@ -1169,9 +1169,8 @@ class ForceFieldParameters:
 
     def optimize_offset(self, ref_dics, parameters0=None, steps=50):
         """
-        Approximate the offset of energy between FF and Reference evaluators
+        Approximate the offset energy between FF and Reference evaluators
         mean(engs_ref-engs_ff)
-        QZ: rewrite ******
 
         Args:
             ref_dics (dict): reference data dictionary
@@ -1186,13 +1185,18 @@ class ForceFieldParameters:
         else:
             assert(len(parameters0) == len(self.params_init))
 
-        results = self.evaluate_multi_references(ref_dics, parameters0)
+        results = self.evaluate_multi_references(ref_dics, parameters0, max_E=1000, max_dE=1000)
         (ff_values, ref_values, _, _) = results
         (ff_eng, _, _) = ff_values
         (ref_eng, _, _) = ref_values
 
         x = parameters0[-1]
-        if abs(x) < 1e-5: x = np.mean(ref_eng - ff_eng)
+        if abs(x) < 1e-5:
+            x = np.mean(ref_eng - ff_eng)
+            print("Initial guess of offset", x)
+            #print("ref_eng", ref_eng)
+            #print("ff_eng", ff_eng)
+
         def obj_fun(x, ff_eng, ref_eng):
             return -compute_r2(ff_eng + x, ref_eng)
 
@@ -1420,9 +1424,15 @@ class ForceFieldParameters:
         return e_diff, f_mse, f_r2, s_mse, s_r2
 
 
-    def evaluate_multi_references(self, ref_dics, parameters):
+    def evaluate_multi_references(self, ref_dics, parameters, max_E, max_dE):
         """
         Calculate scores for multiple reference structures
+
+        Args:
+            ref_dics: list of references
+            parameters: ff parameters array
+            max_E: maximally allowed energy for FF
+            max_dE: maximally allowed dE between FF and ref energy
         """
         self.update_ff_parameters(parameters)
         offset_opt = parameters[-1]
@@ -1442,14 +1452,18 @@ class ForceFieldParameters:
                 coordinates = structure.get_positions()
 
                 ff_dic = self.evaluate_ff_single(lmp_strucs[i], options, lmp_dats[i], None, box, coordinates)
-                ff_eng.append(ff_dic['energy']/ff_dic['replicate'] + offset_opt)
-                ref_eng.append(ref_dic['energy']/ref_dic['replicate'])
-                if ref_dic['options'][1]:
-                    ff_force.extend(ff_dic['forces'].tolist())
-                    ref_force.extend(ref_dic['forces'].tolist())
-                if ref_dic['options'][2]:
-                    ff_stress.extend(ff_dic['stress'].tolist())
-                    ref_stress.extend(ref_dic['stress'].tolist())
+                e1 = ff_dic['energy']/ff_dic['replicate']
+                e2 = ref_dic['energy']/ff_dic['replicate']
+                de = abs(e1 + offset_opt - e2)
+                if e1 < max_E and de < max_de:
+                    ff_eng.append(e1 + offset_opt)
+                    ref_eng.append(e2)
+                    if ref_dic['options'][1]:
+                        ff_force.extend(ff_dic['forces'].tolist())
+                        ref_force.extend(ref_dic['forces'].tolist())
+                    if ref_dic['options'][2]:
+                        ff_stress.extend(ff_dic['stress'].tolist())
+                        ref_stress.extend(ref_dic['stress'].tolist())
         else:
             #parallel process
             N_cycle = int(np.ceil(len(ref_dics)/self.ncpu))
@@ -1469,7 +1483,9 @@ class ForceFieldParameters:
                                   self.natoms_per_unit,
                                   self.f_coef,
                                   self.s_coef,
-                                  folder))
+                                  folder,
+                                  max_E,
+                                  max_dE))
 
             with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
                 results = [executor.submit(evaluate_ff_error_par, *p) for p in args_list]
@@ -1692,7 +1708,8 @@ class ForceFieldParameters:
         plt.title('.'.join(self.smiles))
         plt.savefig(figname)
 
-    def plot_ff_results(self, figname, ref_dics, params, labels=None):
+    def plot_ff_results(self, figname, ref_dics, params, labels=None,
+            max_E=1000, max_dE=1.25):
         """
         plot the ff performance results
 
@@ -1708,7 +1725,7 @@ class ForceFieldParameters:
         if len(params) == 1:
             if labels is None: labels = 'Opt'
             fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-            _, err_dic = self._plot_ff_results(axes, params[0], ref_dics, label=labels)
+            _, err_dic = self._plot_ff_results(axes, params[0], ref_dics, labels, max_E, max_dE)
             plt.savefig(figname)
             return [err_dic]
         else:
@@ -1716,13 +1733,14 @@ class ForceFieldParameters:
             fig, axes = plt.subplots(len(params), 3, figsize=(16, 4*len(params)))
             err_dics = []
             for i, param in enumerate(params):
-                _, err_dic = self._plot_ff_results(axes[i], param, ref_dics, label=labels[i])
+                _, err_dic = self._plot_ff_results(axes[i], param, ref_dics, labels[i], max_E, max_dE)
                 err_dics.append(err_dic)
             plt.savefig(figname)
             return err_dics
 
 
-    def _plot_ff_results(self, axes, parameters, ref_dics, label='Init', size=None):
+    def _plot_ff_results(self, axes, parameters, ref_dics, label,
+            max_E, max_dE, size=None):
         """
         Plot the results of FF prediction as compared to the references in
         terms of Energy, Force and Stress values.
@@ -1737,7 +1755,7 @@ class ForceFieldParameters:
         # Set up the ff engine
         self.update_ff_parameters(parameters)
 
-        results = self.evaluate_multi_references(ref_dics, parameters)
+        results = self.evaluate_multi_references(ref_dics, parameters, max_E, max_dE)
         (ff_values, ref_values, rmse_values, r2_values) = results
         (ff_eng, ff_force, ff_stress) = ff_values
         (ref_eng, ref_force, ref_stress) = ref_values
