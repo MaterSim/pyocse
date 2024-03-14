@@ -388,7 +388,7 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
                                           calculator,
                                           n_atoms_per_unit,
                                           [True, False, True])
-                if ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
+                if ref_eng - min_dE < ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
                     ref_dic['tag'] = 'elastic'
                     ref_dics.append(ref_dic)
 
@@ -404,7 +404,7 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
                                           calculator,
                                           n_atoms_per_unit,
                                           [True, True, False])
-                if ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
+                if ref_eng - min_dE < ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
                     ref_dic['tag'] = 'vibration'
                     ref_dics.append(ref_dic)
     print('# Finalized data augmentation')
