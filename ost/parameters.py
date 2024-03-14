@@ -337,9 +337,11 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
     os.chdir(pwd)
     return ref_dics
 
-def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_unit, logfile='-', fmax=0.1):
+def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_unit, logfile='-',
+        fmax=0.1, max_E=1000, min_dE=20):
     """
     parallel version
+    Add max_E and min_dE to prevent adding the high-E structures
     """
 
     #coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
@@ -370,37 +372,41 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
                                   n_atoms_per_unit,
                                   [True, True, True])
     ref_dic['tag'] = 'minimum'
-    ref_dics.append(ref_dic)
+    ref_eng = ref_dic['energy']/ref_dic['replicate']
+    if ref_eng < max_E:
+        ref_dics.append(ref_dic)
 
-    print('# Get elastic configurations: 3 * {:d}'.format(len(coefs_stress)))
-    cell0 = ref_structure.cell.array
-    for ax in range(3):
-        for coef in coefs_stress:
-            structure = ref_structure.copy()
-            cell = cell0.copy()
-            cell[ax, ax] *= coef
-            structure.set_cell(cell, scale_atoms=True)
-            ref_dic = evaluate_ref_single(structure,
+        print('# Get elastic configurations: 3 * {:d}'.format(len(coefs_stress)))
+        cell0 = ref_structure.cell.array
+        for ax in range(3):
+            for coef in coefs_stress:
+                structure = ref_structure.copy()
+                cell = cell0.copy()
+                cell[ax, ax] *= coef
+                structure.set_cell(cell, scale_atoms=True)
+                ref_dic = evaluate_ref_single(structure,
                                           calculator,
                                           n_atoms_per_unit,
                                           [True, False, True])
-            ref_dic['tag'] = 'elastic'
-            ref_dics.append(ref_dic)
+                if ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
+                    ref_dic['tag'] = 'elastic'
+                    ref_dics.append(ref_dic)
 
-    print('# Get purturbation: {:d} * {:d}'.format(N_vibs, len(dxs)))
-    pos0 = ref_structure.get_positions()
-    for dx in dxs:
-        for i in range(N_vibs):
-            structure = ref_structure.copy()
-            pos = pos0.copy()
-            pos += np.random.uniform(-dx, dx, size=pos0.shape)
-            structure.set_positions(pos)
-            ref_dic = evaluate_ref_single(structure,
+        print('# Get purturbation: {:d} * {:d}'.format(N_vibs, len(dxs)))
+        pos0 = ref_structure.get_positions()
+        for dx in dxs:
+            for i in range(N_vibs):
+                structure = ref_structure.copy()
+                pos = pos0.copy()
+                pos += np.random.uniform(-dx, dx, size=pos0.shape)
+                structure.set_positions(pos)
+                ref_dic = evaluate_ref_single(structure,
                                           calculator,
                                           n_atoms_per_unit,
                                           [True, True, False])
-            ref_dic['tag'] = 'vibration'
-            ref_dics.append(ref_dic)
+                if ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
+                    ref_dic['tag'] = 'vibration'
+                    ref_dics.append(ref_dic)
     print('# Finalized data augmentation')
 
     return ref_dics
@@ -1740,7 +1746,7 @@ class ForceFieldParameters:
 
 
     def _plot_ff_results(self, axes, parameters, ref_dics, label,
-            max_E, max_dE, size=None):
+            max_E=1000, max_dE=1000, size=None):
         """
         Plot the results of FF prediction as compared to the references in
         terms of Energy, Force and Stress values.
