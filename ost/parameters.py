@@ -16,6 +16,7 @@ from ase.constraints import ExpCellFilter
 from ase.spacegroup.symmetrize import FixSymmetry
 
 from pyxtal import pyxtal
+from pyxtal.util import ase2pymatgen
 from pymatgen.core import Structure
 
 from ost.utils import reset_lammps_cell
@@ -384,6 +385,10 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
                 cell = cell0.copy()
                 cell[ax, ax] *= coef
                 structure.set_cell(cell, scale_atoms=True)
+                # Add relaxation to improve the energy
+                structure.set_calculator(calculator)
+                dyn = FIRE(structure, a=0.1, logfile=logfile)
+                dyn.run(fmax=fmax, steps=20)
                 ref_dic = evaluate_ref_single(structure,
                                           calculator,
                                           n_atoms_per_unit,
@@ -1871,6 +1876,31 @@ class ForceFieldParameters:
         #ase_with_ff.write_charmmfiles(base='pyxtal')
         return ase_with_ff
 
+    def clean_ref_dics(self, ref_dics, criteria={"O-O": 2.0}):
+        """
+        Remove the unwanted reference structures by criteria like
+        unwanted bonding, e.g., O-O
+
+        Args:
+            ref_dics: list of reference dics
+            criteria: dictionary of bond type and tolerance
+
+        Returns:
+            ref_dics with the removed unwanted entries
+        """
+        mols = [smi+'.smi' for smi in self.smiles]
+        _ref_dics = []
+        for ref_dic in ref_dics:
+            c = pyxtal(molecular=True)
+            pmg = ase2pymatgen(ref_dic['structure'])
+            try:
+                c.from_seed(pmg, molecules=mols)
+                if c.check_short_distances_by_dict(criteria) == 0:
+                    _ref_dics.append(ref_dic)
+            except:
+                print("Unable to convert to pyxtal", ref_dic['tag'])
+        print("Removed {:d} entries".format(len(ref_dics)-len(_ref_dics)))
+        return _ref_dics
 
 if __name__ == "__main__":
     from pyxtal.db import database
