@@ -1285,6 +1285,37 @@ class ForceFieldParameters:
         with open(filename, 'w') as f:
             f.write(pretty_xml)
 
+
+    def cut_references_by_error(self, ref_dics, parameters, dE=4.0, FMSE=4.0):
+        """
+        Cut the list of references by error
+
+        Args:
+            ref_dics (list): all reference structures
+            parameters (array): ff parmater
+            dE (float): maximally allowed E error
+            FMSE (float): maximally allowed F error
+        """
+        _ref_dics = []
+        self.update_ff_parameters(parameters)
+        for i, ref_dic in enumerate(ref_dics):
+            self.ase_templates = {}
+            self.lmp_dat = {}
+            ff_dic = self.evaluate_ff_single(ref_dic['structure'])
+            e1 = ff_dic['energy']/ff_dic['replicate'] + parameters[-1]
+            e2 = ref_dic['energy']/ff_dic['replicate']
+            if abs(e1-e2) < dE:
+                add = True
+                if ref_dic['options'][1]:
+                    f1 = ff_dic['forces'].flatten()
+                    f2 = ref_dic['forces'].flatten()
+                    rmse = np.sum((f1-f2)**2)/len(f2)
+                    if rmse > FMSE:
+                        add = False
+                if add:
+                    _ref_dics.append(ref_dic)
+        return _ref_dics
+
     def cut_references(self, ref_dics, cutoff):
         """
         Cut the list of references by energy
@@ -1466,7 +1497,7 @@ class ForceFieldParameters:
                 e1 = ff_dic['energy']/ff_dic['replicate']
                 e2 = ref_dic['energy']/ff_dic['replicate']
                 de = abs(e1 + offset_opt - e2)
-                if e1 < max_E and de < max_de:
+                if e1 < max_E and de < max_dE:
                     ff_eng.append(e1 + offset_opt)
                     ref_eng.append(e2)
                     if ref_dic['options'][1]:
@@ -1890,7 +1921,7 @@ class ForceFieldParameters:
         """
         mols = [smi+'.smi' for smi in self.smiles]
         _ref_dics = []
-        for ref_dic in ref_dics:
+        for i, ref_dic in enumerate(ref_dics):
             c = pyxtal(molecular=True)
             pmg = ase2pymatgen(ref_dic['structure'])
             try:
@@ -1898,7 +1929,7 @@ class ForceFieldParameters:
                 if c.check_short_distances_by_dict(criteria) == 0:
                     _ref_dics.append(ref_dic)
             except:
-                print("Unable to convert to pyxtal", ref_dic['tag'])
+                print(i, "Unable to convert to pyxtal", ref_dic['tag'])
         print("Removed {:d} entries".format(len(ref_dics)-len(_ref_dics)))
         return _ref_dics
 
