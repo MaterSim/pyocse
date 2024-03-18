@@ -1286,15 +1286,16 @@ class ForceFieldParameters:
             f.write(pretty_xml)
 
 
-    def cut_references_by_error(self, ref_dics, parameters, dE=4.0, FMSE=4.0):
+    def cut_references_by_error(self, ref_dics, parameters, dE=4.0, FMSE=4.0, SMSE=5e-4):
         """
         Cut the list of references by error
 
         Args:
             ref_dics (list): all reference structures
             parameters (array): ff parmater
-            dE (float): maximally allowed E error
-            FMSE (float): maximally allowed F error
+            dE (float): maximally allowed Energy error
+            FMSE (float): maximally allowed Force error
+            SMSE (float): maximally allowed Stress error
         """
         _ref_dics = []
         self.update_ff_parameters(parameters)
@@ -1311,6 +1312,12 @@ class ForceFieldParameters:
                     f2 = ref_dic['forces'].flatten()
                     rmse = np.sum((f1-f2)**2)/len(f2)
                     if rmse > FMSE:
+                        add = False
+                if add and ref_dic['options'][2]:
+                    s1 = ff_dic['stress']
+                    s2 = ref_dic['stress']
+                    rmse = np.sum((s1-s2)**2)/len(s2)
+                    if rmse > SMSE:
                         add = False
                 if add:
                     _ref_dics.append(ref_dic)
@@ -1881,6 +1888,8 @@ class ForceFieldParameters:
                 r2 = compute_r2(s1, s2)
                 print('Stress_ff    : {:8.3f}{:9.3f}{:9.3f}{:9.3f}{:9.3f}{:9.3f}'.format(*s1))
                 print('Stress_ref   : {:8.3f}{:9.3f}{:9.3f}{:9.3f}{:9.3f}{:9.3f}'.format(*s2))
+                print('Stress-R2-MSE: {:8.5f} {:8.5f}'.format(r2, rmse))
+
 
     def get_ase_charmm(self, params):
         """
