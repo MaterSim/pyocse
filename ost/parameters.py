@@ -1314,6 +1314,8 @@ class ForceFieldParameters:
                         add = False
                 if add:
                     _ref_dics.append(ref_dic)
+
+        print("Removed {:d} entries by error".format(len(ref_dics)-len(_ref_dics)))
         return _ref_dics
 
     def cut_references(self, ref_dics, cutoff):
@@ -1930,7 +1932,7 @@ class ForceFieldParameters:
                     _ref_dics.append(ref_dic)
             except:
                 print(i, "Unable to convert to pyxtal", ref_dic['tag'])
-        print("Removed {:d} entries".format(len(ref_dics)-len(_ref_dics)))
+        print("Removed {:d} entries by geometry".format(len(ref_dics)-len(_ref_dics)))
         return _ref_dics
 
 if __name__ == "__main__":
