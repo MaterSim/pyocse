@@ -222,6 +222,8 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
             if options[2]:
                 ff_stress.extend(stress.tolist())
                 ref_stress.extend(ref_dic['stress'].tolist())
+        else:
+            print('Neglect reference due to energy', eng, abs(e_diff), ref_dic['tag'])
     os.chdir(pwd)
     return (ff_eng, ff_force, ff_stress, ref_eng, ref_force, ref_stress)
 
@@ -339,7 +341,7 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
     return ref_dics
 
 def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_unit, logfile='-',
-        fmax=0.1, max_E=1000, min_dE=20):
+        fmax=0.1, max_E=1000, min_dE=5.0):
     """
     parallel version
     Add max_E and min_dE to prevent adding the high-E structures
@@ -1760,7 +1762,7 @@ class ForceFieldParameters:
         plt.savefig(figname)
 
     def plot_ff_results(self, figname, ref_dics, params, labels=None,
-            max_E=1000, max_dE=1.25):
+            max_E=1000, max_dE=1000):
         """
         plot the ff performance results
 
@@ -1773,6 +1775,7 @@ class ForceFieldParameters:
         Return:
             performance figure and the error dictionaries
         """
+        print("Number of reference structures", len(ref_dics))
         if len(params) == 1:
             if labels is None: labels = 'Opt'
             fig, axes = plt.subplots(1, 3, figsize=(16, 5))
