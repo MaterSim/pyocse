@@ -536,11 +536,15 @@ class ForceFieldParameters:
                 N_angle += 2
 
         # Proper (phi_k) # per=2, phase=180.000,  scee=1.200, scnb=2.000
+        # phi_k can be negative in some cases
         for molecule in self.ff.molecules:
             for dihedral_type in molecule.dihedral_types:
                     phi_k = dihedral_type.phi_k
                     params.append(phi_k)
-                    bounds.append((phi_k * coefs[0], phi_k * coefs[1]))
+                    if phi_k > 0:
+                        bounds.append((phi_k * coefs[0], phi_k * coefs[1]))
+                    else:
+                        bounds.append((phi_k * coefs[1], phi_k * coefs[0]))
                     N_proper += 1
 
         # Improper (phi_k) #  per=2, phase=180.000,  scee=1.200, scnb=2.000>
