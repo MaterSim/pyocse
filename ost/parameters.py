@@ -1918,7 +1918,7 @@ class ForceFieldParameters:
             from operator import add
             mols = []
             for i, m in enumerate(n_mols):
-                mols += [ff.molecules[i] * m]
+                mols += [self.ff.molecules[i] * m]
             pd_struc = reduce(add, mols)
 
         ase_with_ff = CHARMMStructure.from_structure(pd_struc)
@@ -1956,12 +1956,15 @@ if __name__ == "__main__":
 
     # db = database('../HT-OCSP/benchmarks/Si.db')
     db = database("../HT-OCSP/benchmarks/test.db")
-    xtal = db.get_pyxtal("ACSALA")
+    style = 'openff'
+    #xtal = db.get_pyxtal("ACSALA")
+    xtal = db.get_pyxtal("XATJOT")
+    #xtal = db.get_pyxtal("KONTIQ09")
     smiles = [mol.smile for mol in xtal.molecules]
     assert smiles[0] is not None
-    params = ForceFieldParameters(smiles)
+    params = ForceFieldParameters(smiles, style=style)
     print(params)
     params0 = params.params_init.copy()
     ase_with_ff = params.get_ase_charmm(params0)
-    ase_with_ff.write_charmmfiles(base='pyxtal')
+    ase_with_ff.write_charmmfiles(base='pyxtal', style=style)
     #params.evaluate_ff_single(xtal.to_ase(resort=False))
