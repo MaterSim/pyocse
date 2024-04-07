@@ -82,7 +82,7 @@ def xml_to_dict_list(filename):
             # Check if the field should be converted back to an array
             if key in ['lattice', 'position', 'forces', 'numbers', 'stress',
                        'bond', 'angle', 'proper', 'vdW', 'charge', 'offset',
-                       'rmse_values', 'r2_values']:
+                       'rmse_values', 'r2_values', 'numMols']:
 
                 if text != 'None':
                     #print(text)
@@ -106,8 +106,8 @@ def xml_to_dict_list(filename):
                         value = text
 
             item_dict[key] = value
+        #print(item_dict.keys())
         data.append(item_dict)
-
     return data
 
 
@@ -162,7 +162,9 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only,
 
     for ref_dic, lmp_struc, lmp_dat in zip(ref_dics, lmp_strucs, lmp_dats):
         options = ref_dic['options']
+        numMol = ref_dic['numMols']
         efs = evaluate_structure(ref_dic['structure'],
+                                 #numMol,
                                  lmp_struc,
                                  lmp_dat,
                                  lmp_in,
@@ -271,7 +273,7 @@ def obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef, obj):
     else:
         return (eng_arr, force_arr, stress_arr)
 
-def evaluate_ref_par(structures, calculator, natoms_per_unit,
+def evaluate_ref_par(structures, numMols, calculator, natoms_per_unit,
                         options=[True, True, True]):
     """
     evaluate the reference structure with the ref_evaluator
@@ -318,7 +320,7 @@ def evaluate_ref_single(structure, numMol, calculator, natoms_per_unit,
 
     return ref_dic
 
-def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder, logfile='-', fmax=0.1):
+def augment_ref_par(strucs, numMols, calculator, steps, N_vibs, n_atoms_per_unit, folder, logfile='-', fmax=0.1):
     """
     parallel version
     """
@@ -329,9 +331,10 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
     os.chdir(folder)
     ref_dics = []
 
-    for ref_structure in strucs:
+    for numMol, ref_structure in zip(numMols, strucs):
         #print(ref_structure)
         ref_dics.extend(augment_ref_single(ref_structure,
+                                           numMol,
                                            calculator,
                                            steps,
                                            N_vibs,
@@ -366,11 +369,12 @@ def augment_ref_single(ref_structure, numMol, calculator, steps, N_vibs, n_atoms
 
     # reset_lammps_cell and make supercell (QZ......)
     cell = ref_structure.get_cell_lengths_and_angles()[:3]
-    supercell = [1, 1, 1]
-    for ax in range(3):
-        supercell[ax] = int(ceil(6.5/cell[ax])) # to save some time?
-        numMol *= supercell[ax]
-    ref_structure *= supercell
+    # Disable supercell
+    #supercell = [1, 1, 1]
+    #for ax in range(3):
+    #    supercell[ax] = int(ceil(6.5/cell[ax])) # to save some time?
+    #    numMols = [n * supercell[ax] for n in numMols]
+    #ref_structure *= supercell
     ref_structure = reset_lammps_cell(ref_structure)
 
     ref_dic = evaluate_ref_single(ref_structure,
@@ -798,7 +802,7 @@ class ForceFieldParameters:
     def get_lmp_inputs_from_ref_dics(self, ref_dics):
         lmp_strucs, lmp_dats = [], []
         for ref_dic in ref_dics:
-            numMols = ref_dics['numMols']
+            numMols = ref_dic['numMols']
             structure = ref_dic['structure']
             lmp_struc, lmp_dat = self.get_lmp_input_from_structure(structure, numMols)
             lmp_strucs.append(lmp_struc)
@@ -913,7 +917,8 @@ class ForceFieldParameters:
         if self.ncpu == 1:
             for i, ref_dic in enumerate(ref_dics):
                 options = ref_dic['options']
-                ff_dic = self.evaluate_ff_single(lmp_strucs[i], options,
+                numMol = ref_dic['numMols']
+                ff_dic = self.evaluate_ff_single(lmp_strucs[i], numMol, options,
                                                  lmp_dats[i], lmp_in,
                                                  )
                 #total_obj += self.obj_from_ffdic(ff_dic, ref_dic, e_offset, E_only)
@@ -1322,7 +1327,7 @@ class ForceFieldParameters:
         for i, ref_dic in enumerate(ref_dics):
             self.ase_templates = {}
             self.lmp_dat = {}
-            ff_dic = self.evaluate_ff_single(ref_dic['structure'])
+            ff_dic = self.evaluate_ff_single(ref_dic['structure'], ref_dic['numMols'])
             e1 = ff_dic['energy']/ff_dic['replicate'] + parameters[-1]
             e2 = ref_dic['energy']/ff_dic['replicate']
             if abs(e1-e2) < dE:
@@ -1407,6 +1412,7 @@ class ForceFieldParameters:
                             'replicate': dic['replicate'],
                             'options': dic['options'],
                             'tag': dic['tag'],
+                            'numMols': [int(m) for m in dic['numMols']],
                            }
                     ref_dics.append(dic0)
             else:
@@ -1479,7 +1485,7 @@ class ForceFieldParameters:
         offset_opt = parameters[-1]
         structure, options = ref_dic['structure'], ref_dic['options']
 
-        ff_dic = self.evaluate_ff_single(structure, options, None)
+        ff_dic = self.evaluate_ff_single(structure, ref_dic['numMols'], options, None)
         e_diff = ff_dic['energy']/ff_dic['replicate'] + offset_opt - ref_dic['energy']/ff_dic['replicate']
         print(ff_dic['energy'], ref_dic['energy'])
         if options[1]:
@@ -1516,13 +1522,13 @@ class ForceFieldParameters:
 
         if self.ncpu == 1:
             for i, ref_dic in enumerate(ref_dics):
-                structure, options = ref_dic['structure'], ref_dic['options']
+                structure, options, numMols = ref_dic['structure'], ref_dic['options'], ref_dic['numMols']
                 #print(lmp_strucs[i].box)
                 structure = reset_lammps_cell(structure)
                 box = structure.cell.cellpar()
                 coordinates = structure.get_positions()
 
-                ff_dic = self.evaluate_ff_single(lmp_strucs[i], options, lmp_dats[i], None, box, coordinates)
+                ff_dic = self.evaluate_ff_single(lmp_strucs[i], numMols, options, lmp_dats[i], None, box, coordinates)
                 e1 = ff_dic['energy']/ff_dic['replicate']
                 e2 = ref_dic['energy']/ff_dic['replicate']
                 de = abs(e1 + offset_opt - e2)
@@ -1629,6 +1635,7 @@ class ForceFieldParameters:
                     os.makedirs(folder, exist_ok=True)
                     print("# parallel process", N_cycle, id1, id2)
                     args_list.append((strucs[id1:id2],
+                                      numMols[id1:id2],
                                       self.calculator,
                                       self.natoms_per_unit,
                                       [True, True, True]))
@@ -1644,6 +1651,7 @@ class ForceFieldParameters:
             if self.ncpu == 1:
                 for struc in strucs:
                     dics = self.augment_reference(struc,
+                                                  numMols,
                                                   steps=steps,
                                                   N_vibs=N_vibs,
                                                   logfile=logfile)
@@ -1659,6 +1667,7 @@ class ForceFieldParameters:
                     os.makedirs(folder, exist_ok=True)
                     print("# parallel process", N_cycle, id1, id2)
                     args_list.append((strucs[id1:id2],
+                                      numMols[id1:id2],
                                       self.calculator,
                                       steps,
                                       N_vibs,
@@ -1893,7 +1902,7 @@ class ForceFieldParameters:
             self.ase_templates = {}
             self.lmp_dat = {}
 
-            ff_dic = self.evaluate_ff_single(ref_dic['structure'])
+            ff_dic = self.evaluate_ff_single(ref_dic['structure'], ref_dic['numMols'])
             e1 = ff_dic['energy']/ff_dic['replicate'] + parameters[-1]
             e2 = ref_dic['energy']/ff_dic['replicate']
             print('\nStructure {:3d}'.format(i))
@@ -1980,11 +1989,17 @@ if __name__ == "__main__":
     #xtal = db.get_pyxtal("KONTIQ09")
     smiles = [mol.smile for mol in xtal.molecules]
     assert smiles[0] is not None
-    params = ForceFieldParameters(smiles, style=style)
+    params = ForceFieldParameters(smiles, style=style, ncpu=2)
     print(params)
     params0 = params.params_init.copy()
     ase_with_ff = params.get_ase_charmm(params0)
     ase_with_ff.write_charmmfiles(base='pyxtal')#, style=style)
     #ff_dic = params.evaluate_ff_single(xtal.to_ase(resort=False), xtal.numMols); print(ff_dic)
     #ref_dic = params.evaluate_ref_single(xtal.to_ase(resort=False), xtal.numMols); print(ref_dic)
-    #ref_dics = params.augment_reference(xtal.to_ase(resort=False), xtal.numMols); print(ref_dics)
+    if os.path.exists('reference.xml'):
+        ref_dics = params.load_references('reference.xml')
+    else:
+        ref_dics = params.augment_reference(xtal.to_ase(resort=False), xtal.numMols, steps=20, N_vibs=3)
+        params.export_references(ref_dics, filename='reference.xml')
+    print(ref_dics[0].keys())
+    params.generate_report(ref_dics, params0)
