@@ -277,14 +277,15 @@ def evaluate_ref_par(structures, calculator, natoms_per_unit,
     evaluate the reference structure with the ref_evaluator
     """
     ref_dics = []
-    for struc in structures:
+    for numMol, struc in zip(numMols, )structures):
         ref_dics.append(evaluate_ref_single(struc,
-                                      calculator,
-                                      natoms_per_unit,
-                                      options))
+                                            numMol,
+                                            calculator,
+                                            natoms_per_unit,
+                                            options))
     return ref_dics
 
-def evaluate_ref_single(structure, calculator, natoms_per_unit,
+def evaluate_ref_single(structure, numMol, calculator, natoms_per_unit,
                         options=[True, True, True], relax=False):
     """
     evaluate the reference structure with the ref_evaluator
@@ -297,6 +298,7 @@ def evaluate_ref_single(structure, calculator, natoms_per_unit,
                'replicate': len(structure)/natoms_per_unit,
                'options': options,
                'tag': 'CSP',
+               'numMol': numMol,
               }
     structure.set_calculator(calculator)
     if relax:
@@ -340,7 +342,7 @@ def augment_ref_par(strucs, calculator, steps, N_vibs, n_atoms_per_unit, folder,
     os.chdir(pwd)
     return ref_dics
 
-def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_unit, logfile='-',
+def augment_ref_single(ref_structure, numMol, calculator, steps, N_vibs, n_atoms_per_unit, logfile='-',
         fmax=0.1, max_E=1000, min_dE=5.0):
     """
     parallel version
@@ -367,10 +369,12 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
     supercell = [1, 1, 1]
     for ax in range(3):
         supercell[ax] = int(ceil(6.5/cell[ax])) # to save some time?
+        numMol *= supercell[ax]
     ref_structure *= supercell
     ref_structure = reset_lammps_cell(ref_structure)
 
     ref_dic = evaluate_ref_single(ref_structure,
+                                  numMol,
                                   calculator,
                                   n_atoms_per_unit,
                                   [True, True, True])
@@ -392,9 +396,10 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
                 dyn = FIRE(structure, a=0.1, logfile=logfile)
                 dyn.run(fmax=fmax, steps=20)
                 ref_dic = evaluate_ref_single(structure,
-                                          calculator,
-                                          n_atoms_per_unit,
-                                          [True, False, True])
+                                              numMol,
+                                              calculator,
+                                              n_atoms_per_unit,
+                                              [True, False, True])
                 if ref_eng - min_dE < ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
                     ref_dic['tag'] = 'elastic'
                     ref_dics.append(ref_dic)
@@ -408,9 +413,10 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
                 pos += np.random.uniform(-dx, dx, size=pos0.shape)
                 structure.set_positions(pos)
                 ref_dic = evaluate_ref_single(structure,
-                                          calculator,
-                                          n_atoms_per_unit,
-                                          [True, True, False])
+                                              numMol,
+                                              calculator,
+                                              n_atoms_per_unit,
+                                              [True, True, False])
                 if ref_eng - min_dE < ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
                     ref_dic['tag'] = 'vibration'
                     ref_dics.append(ref_dic)
@@ -420,16 +426,18 @@ def augment_ref_single(ref_structure, calculator, steps, N_vibs, n_atoms_per_uni
 
 def add_strucs_par(strs, smiles):
     strucs = []
+    numMols = []
     for _str in strs:
         try:
             pmg = Structure.from_str(_str, fmt='cif')
             c0 = pyxtal(molecular=True)
             c0.from_seed(pmg, molecules=smiles)
             strucs.append(c0.to_ase(resort=False))
+            numMols.append(c0.numMols)
         except:
             print("Skip a structure due to reading error")
             print(_str)
-    return strucs
+    return strucs, numMols
 
 
 
@@ -787,21 +795,22 @@ class ForceFieldParameters:
     def get_lmp_inputs_from_ref_dics(self, ref_dics):
         lmp_strucs, lmp_dats = [], []
         for ref_dic in ref_dics:
+            numMols = ref_dics['numMols']
             structure = ref_dic['structure']
-            lmp_struc, lmp_dat = self.get_lmp_input_from_structure(structure)
+            lmp_struc, lmp_dat = self.get_lmp_input_from_structure(structure, numMols)
             lmp_strucs.append(lmp_struc)
             lmp_dats.append(lmp_dat)
         #print('Final'); print(lmp_strucs[0].box); print(lmp_strucs[-1].box); import sys; sys.exit()
         return lmp_strucs, lmp_dats
 
-    def get_lmp_input_from_structure(self, structure, set_template=True):
+    def get_lmp_input_from_structure(self, structure, numMols=[1], set_template=True):
 
         replicate = len(structure)/self.natoms_per_unit
         if replicate in self.ase_templates.keys():
             lmp_struc = self.ase_templates[replicate]
             lmp_dat = self.lmp_dat[replicate]
         else:
-            lmp_struc = self.ff.get_ase_lammps(structure)
+            lmp_struc = self.ff.get_ase_lammps(structure, numMols)
             dat_head = lmp_struc._write_dat_head()
             dat_prm = lmp_struc._write_dat_parameters()
             dat_connect, _, _, _ = lmp_struc._write_dat_connects()
@@ -1579,7 +1588,7 @@ class ForceFieldParameters:
         return ff_values, ref_values, rmse_values, r2_values
 
 
-    def add_multi_references(self, strucs, augment=True, steps=120, N_vibs=3, logfile='-'):
+    def add_multi_references(self, strucs, numMols, augment=True, steps=120, N_vibs=3, logfile='-'):
         """
         Add multiple references to training
 
@@ -1596,12 +1605,13 @@ class ForceFieldParameters:
 
         if not augment:
             if self.ncpu == 1:
-                for struc in strucs:
+                for numMol, struc in zip(numMols, strucs):
                     ref_structure = reset_lammps_cell(struc)
                     ref_dic = evaluate_ref_single(ref_structure,
-                                              self.calculator,
-                                              self.natoms_per_unit,
-                                              [True, True, True])
+                                                numMol,
+                                                self.calculator,
+                                                self.natoms_per_unit,
+                                                [True, True, True])
                     ref_dic['tag'] = 'CSP'
                     ref_dics.append(ref_dic)
             else:
@@ -1681,6 +1691,7 @@ class ForceFieldParameters:
         strs = [strs[id] for id in ids if engs[id] < 1000] # sort by eng
         smiles = [smi+'.smi' for smi in self.ff.smiles]
         strucs = []
+        numMols = []
 
         if self.ncpu == 1:
             for i, id in enumerate(ids):
@@ -1688,6 +1699,7 @@ class ForceFieldParameters:
                 c0 = pyxtal(molecular=True)
                 c0.from_seed(pmg, molecules=smiles)
                 strucs.append(c0.to_ase(resort=False))
+                numMols.append(c0.numMols)
         else:
             N_cycle = int(np.ceil(len(strs)/self.ncpu))
             args_list = []
@@ -1702,9 +1714,10 @@ class ForceFieldParameters:
                 for result in results:
                     res = result.result()
                     if len(res) > 0:
-                        strucs.extend(res)
+                        strucs.extend(res[0])
+                        numMols.extend(res[1])
 
-        return self.add_multi_references(strucs, augment, steps, N_vibs)
+        return self.add_multi_references(strucs, numMols, augment, steps, N_vibs)
 
 
     def _plot_ff_parameters(self, ax, params, term='bond-1', width=0.35):

@@ -58,7 +58,7 @@ class forcefield:
             self.partial_charges.append(molecule.partial_charges)
         # print(self.partial_charges)
 
-    def get_ase_lammps(self, atoms):
+    def get_ase_lammps(self, atoms, numMols):
         """
         Add the lammps ff information into the give atoms object
 
@@ -79,7 +79,7 @@ class forcefield:
             from functools import reduce
             from operator import add
             mols = []
-            for i, m in enumerate(self.xtal_n_mols):
+            for i, m in enumerate(numMols):
                 mols += [self.molecules[i]*m]
             pd_struc = reduce(add, mols) #self.molecules)
             pd_struc.update(atoms)
