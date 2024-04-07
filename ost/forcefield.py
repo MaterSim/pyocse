@@ -64,6 +64,7 @@ class forcefield:
 
         Args:
             Atoms: the ase atoms following the atomic order in self.molecules
+            numMols: the list of number of molecules
 
         Return:
             Atoms with lammps ff information
@@ -81,7 +82,7 @@ class forcefield:
             mols = []
             for i, m in enumerate(numMols):
                 mols += [self.molecules[i]*m]
-            pd_struc = reduce(add, mols) #self.molecules)
+            pd_struc = reduce(add, mols); print(pd_struc); print(numMols)
             pd_struc.update(atoms)
             atoms = LAMMPSStructure.from_structure(pd_struc)
             #struc.restore_ffdic()

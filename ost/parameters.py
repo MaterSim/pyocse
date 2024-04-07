@@ -277,7 +277,7 @@ def evaluate_ref_par(structures, calculator, natoms_per_unit,
     evaluate the reference structure with the ref_evaluator
     """
     ref_dics = []
-    for numMol, struc in zip(numMols, )structures):
+    for numMol, struc in zip(numMols, structures):
         ref_dics.append(evaluate_ref_single(struc,
                                             numMol,
                                             calculator,
@@ -298,7 +298,7 @@ def evaluate_ref_single(structure, numMol, calculator, natoms_per_unit,
                'replicate': len(structure)/natoms_per_unit,
                'options': options,
                'tag': 'CSP',
-               'numMol': numMol,
+               'numMols': numMol,
               }
     structure.set_calculator(calculator)
     if relax:
@@ -754,7 +754,7 @@ class ForceFieldParameters:
         return str(self)
 
 
-    def augment_reference(self, ref_structure, fmax=0.1, steps=250, N_vibs=10, logfile='-'):
+    def augment_reference(self, ref_structure, numMols, fmax=0.1, steps=250, N_vibs=10, logfile='-'):
         """
         Generate more reference data based on input structure, including
         1. Fully optimized structue
@@ -763,6 +763,7 @@ class ForceFieldParameters:
 
         Args:
             - ref_structure
+            - numMols
             - fmax
             - steps (int)
             - N_vibs (int)
@@ -773,6 +774,7 @@ class ForceFieldParameters:
 
         #ref_structure = self.ff.reset_lammps_cell(ref_structure)
         return augment_ref_single(ref_structure,
+                                  numMols,
                                   self.calculator,
                                   steps,
                                   N_vibs,
@@ -781,11 +783,12 @@ class ForceFieldParameters:
                                   fmax)
 
     #@timeit
-    def evaluate_ref_single(self, structure, options=[True, True, True], relax=False):
+    def evaluate_ref_single(self, structure, numMols=[1], options=[True, True, True], relax=False):
         """
         evaluate the reference structure with the ref_evaluator
         """
         return evaluate_ref_single(structure,
+                                   numMols,
                                    self.calculator,
                                    self.natoms_per_unit,
                                    options,
@@ -821,7 +824,7 @@ class ForceFieldParameters:
         return lmp_struc, lmp_dat
 
     #@timeit
-    def evaluate_ff_single(self, lmp_struc, options=[True]*3,
+    def evaluate_ff_single(self, lmp_struc, numMols=[1], options=[True]*3,
                            lmp_dat=None,
                            lmp_in=None,
                            box=None,
@@ -832,6 +835,7 @@ class ForceFieldParameters:
 
         Args:
             lmp_struc: ase structure
+            numMols: list of num of molecules
             options (list): [energy, forces, stress]
             lmp_dat:
             lmp_in:
@@ -845,7 +849,7 @@ class ForceFieldParameters:
         if type(lmp_struc) == Atoms:
             self.ase_templates = {}
             self.lmp_dat = {}
-            lmp_struc, lmp_dat = self.get_lmp_input_from_structure(lmp_struc)
+            lmp_struc, lmp_dat = self.get_lmp_input_from_structure(lmp_struc, numMols)
         if box is not None: lmp_struc.box = box
         if positions is not None: lmp_struc.coordinates = positions
 
@@ -857,6 +861,7 @@ class ForceFieldParameters:
                   'stress': None,
                   'replicate': replicate,
                   'options': options,
+                  'numMols': numMols,
                   }
 
         eng, force, stress = get_lmp_efs(lmp_struc, lmp_in, lmp_dat)
@@ -1980,4 +1985,6 @@ if __name__ == "__main__":
     params0 = params.params_init.copy()
     ase_with_ff = params.get_ase_charmm(params0)
     ase_with_ff.write_charmmfiles(base='pyxtal')#, style=style)
-    #params.evaluate_ff_single(xtal.to_ase(resort=False))
+    #ff_dic = params.evaluate_ff_single(xtal.to_ase(resort=False), xtal.numMols); print(ff_dic)
+    #ref_dic = params.evaluate_ref_single(xtal.to_ase(resort=False), xtal.numMols); print(ref_dic)
+    #ref_dics = params.augment_reference(xtal.to_ase(resort=False), xtal.numMols); print(ref_dics)
