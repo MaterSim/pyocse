@@ -179,7 +179,7 @@ class ParmEdStructure(Structure):
         self.cutoff_ljin = self.DEFAULT_CUTOFF_LJIN
         self.cutoff_ljout = self.DEFAULT_CUTOFF_LJOUT
         self.ewald_error_tolerance = self.DEFAULT_EWALD_ERROR_TOLERANCE
-        
+
 
     # def __iadd__(self, other):
     #    new = super().__iadd__(other)
@@ -236,17 +236,16 @@ class ParmEdStructure(Structure):
     @staticmethod
     def get_keys_and_types(props):
         from collections import OrderedDict
-
         from parmed import DihedralType
 
         typedict = OrderedDict()
         for prop in props:
             orderedkey = ParmEdStructure._get_keys_from_parmed_topology(prop)
+            if type(prop.type) == DihedralType:
+                per = prop.type.per
+                imp = prop.improper
+                orderedkey = (orderedkey, (per, imp))#; print(orderedkey)
             if orderedkey not in typedict:
-                if type(prop.type) == DihedralType:
-                    per = prop.type.per
-                    imp = prop.improper
-                    orderedkey = (orderedkey, (per, imp))
                 typedict[orderedkey] = prop.type
             else:
                 td = typedict[orderedkey]

@@ -1956,7 +1956,7 @@ if __name__ == "__main__":
 
     # db = database('../HT-OCSP/benchmarks/Si.db')
     db = database("../HT-OCSP/benchmarks/test.db")
-    style = 'openff'
+    style = 'gaff' #'openff'
     #xtal = db.get_pyxtal("ACSALA")
     xtal = db.get_pyxtal("XATJOT")
     #xtal = db.get_pyxtal("KONTIQ09")
@@ -1966,5 +1966,5 @@ if __name__ == "__main__":
     print(params)
     params0 = params.params_init.copy()
     ase_with_ff = params.get_ase_charmm(params0)
-    ase_with_ff.write_charmmfiles(base='pyxtal', style=style)
+    ase_with_ff.write_charmmfiles(base='pyxtal')#, style=style)
     #params.evaluate_ff_single(xtal.to_ase(resort=False))
