@@ -106,7 +106,11 @@ class forcefield:
             atoms = self.molecules[0].to_ase()
             pd_struc = self.molecules[0].copy(cls=ParmEdStructure)
             pd_struc.update(atoms)
-            atoms = LAMMPSStructure.from_structure(pd_struc)
+        else:
+            from functools import reduce
+            from operator import add
+            pd_struc = reduce(add, self.molecules)
+        atoms = LAMMPSStructure.from_structure(pd_struc)
         atoms.set_pbc(pbc)
         atoms.title = '.'.join(self.smiles)
 

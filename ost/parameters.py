@@ -2001,5 +2001,6 @@ if __name__ == "__main__":
     else:
         ref_dics = params.augment_reference(xtal.to_ase(resort=False), xtal.numMols, steps=20, N_vibs=3)
         params.export_references(ref_dics, filename='reference.xml')
-    print(ref_dics[0].keys())
     params.generate_report(ref_dics, params0)
+    print(params.get_objective(ref_dics, -100))
+    print(params.evaluate_multi_references(ref_dics, params0, max_E=1000, max_dE=1000))
