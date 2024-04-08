@@ -8,6 +8,9 @@ from ost.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
 from ost.interfaces.rdkit import smiles_to_ase_and_pmg
 from ost.lmp import LAMMPSStructure
 import numpy as np
+from pyxtal.constants import single_smiles
+import re
+
 
 class forcefield:
     """
@@ -43,7 +46,10 @@ class forcefield:
             )
             molecule.ffdic = ffdic
             molecule.change_residue_name(residuename)
-            molecule.set_charges(self.partial_charges[i].m)
+            if smi in single_smiles:
+                molecule.set_charges(self.partial_charges[i])
+            else:
+                molecule.set_charges(self.partial_charges[i].m)
             self.molecules.append(molecule)
 
     def set_partial_charges(self):
@@ -53,9 +59,26 @@ class forcefield:
         """
         self.partial_charges = []
         for smi in self.smiles:
-            molecule = Molecule.from_smiles(smi)
-            molecule.assign_partial_charges(self.chargemethod)
-            self.partial_charges.append(molecule.partial_charges)
+            if smi in single_smiles:
+                pattern = r'([A-Za-z]+)([+\-]?\d*)'
+                matches = re.search(pattern, smi)
+                #print(smi, matches)
+                if matches:
+                    charge_str = matches.group(2)
+                    if charge_str == '+':
+                        charge = 1.0
+                    elif charge_str == '-':
+                        charge = -1.0
+                    else:
+                        charge = float(charge_str)
+                else:
+                    raise ValueError("smiles cannot be analyzed", smi)
+                self.partial_charges.append([charge])
+
+            else:
+                molecule = Molecule.from_smiles(smi)
+                molecule.assign_partial_charges(self.chargemethod)
+                self.partial_charges.append(molecule.partial_charges)
         # print(self.partial_charges)
 
     def get_ase_lammps(self, atoms, numMols):

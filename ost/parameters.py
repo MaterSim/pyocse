@@ -1985,10 +1985,11 @@ if __name__ == "__main__":
     db = database("../HT-OCSP/benchmarks/test.db")
     style = 'gaff' #'openff'
     #xtal = db.get_pyxtal("ACSALA")
-    xtal = db.get_pyxtal("XATJOT")
+    xtal = db.get_pyxtal("XAFQON")#"XATJOT")
     #xtal = db.get_pyxtal("KONTIQ09")
     smiles = [mol.smile for mol in xtal.molecules]
     assert smiles[0] is not None
+    smiles[0] = '[Cl-]'
     params = ForceFieldParameters(smiles, style=style, ncpu=2)
     print(params)
     params0 = params.params_init.copy()
@@ -1996,11 +1997,11 @@ if __name__ == "__main__":
     ase_with_ff.write_charmmfiles(base='pyxtal')#, style=style)
     #ff_dic = params.evaluate_ff_single(xtal.to_ase(resort=False), xtal.numMols); print(ff_dic)
     #ref_dic = params.evaluate_ref_single(xtal.to_ase(resort=False), xtal.numMols); print(ref_dic)
-    if os.path.exists('reference.xml'):
-        ref_dics = params.load_references('reference.xml')
-    else:
-        ref_dics = params.augment_reference(xtal.to_ase(resort=False), xtal.numMols, steps=20, N_vibs=3)
-        params.export_references(ref_dics, filename='reference.xml')
-    params.generate_report(ref_dics, params0)
-    print(params.get_objective(ref_dics, -100))
-    print(params.evaluate_multi_references(ref_dics, params0, max_E=1000, max_dE=1000))
+    #if os.path.exists('reference.xml'):
+    #    ref_dics = params.load_references('reference.xml')
+    #else:
+    #    ref_dics = params.augment_reference(xtal.to_ase(resort=False), xtal.numMols, steps=20, N_vibs=3)
+    #    params.export_references(ref_dics, filename='reference.xml')
+    #params.generate_report(ref_dics, params0)
+    #print(params.get_objective(ref_dics, -100))
+    #print(params.evaluate_multi_references(ref_dics, params0, max_E=1000, max_dE=1000))
