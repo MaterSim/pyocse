@@ -1984,18 +1984,19 @@ if __name__ == "__main__":
     # db = database('../HT-OCSP/benchmarks/Si.db')
     db = database("../HT-OCSP/benchmarks/test.db")
     style = 'gaff' #'openff'
+    style = 'openff'
     #xtal = db.get_pyxtal("ACSALA")
-    xtal = db.get_pyxtal("XAFQON")#"XATJOT")
+    xtal = db.get_pyxtal("XATJOT") #"XAFQON")#
     #xtal = db.get_pyxtal("KONTIQ09")
     smiles = [mol.smile for mol in xtal.molecules]
     assert smiles[0] is not None
-    smiles[0] = '[Cl-]'
     params = ForceFieldParameters(smiles, style=style, ncpu=2)
+    #smiles[0] = '[Cl-]'
     print(params)
     params0 = params.params_init.copy()
     ase_with_ff = params.get_ase_charmm(params0)
     ase_with_ff.write_charmmfiles(base='pyxtal')#, style=style)
-    #ff_dic = params.evaluate_ff_single(xtal.to_ase(resort=False), xtal.numMols); print(ff_dic)
+    ff_dic = params.evaluate_ff_single(xtal.to_ase(resort=False), xtal.numMols); print(ff_dic)
     #ref_dic = params.evaluate_ref_single(xtal.to_ase(resort=False), xtal.numMols); print(ref_dic)
     #if os.path.exists('reference.xml'):
     #    ref_dics = params.load_references('reference.xml')

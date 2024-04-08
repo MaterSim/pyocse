@@ -50,6 +50,9 @@ class forcefield:
                 molecule.set_charges(self.partial_charges[i])
             else:
                 molecule.set_charges(self.partial_charges[i].m)
+            if style == 'openff':
+                for at in molecule.atoms:
+                    at.atom_type.number = i
             self.molecules.append(molecule)
 
     def set_partial_charges(self):
