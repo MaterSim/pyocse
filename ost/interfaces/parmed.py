@@ -173,6 +173,7 @@ class ParmEdStructure(Structure):
         self.ewald_error_tolerance = self.DEFAULT_EWALD_ERROR_TOLERANCE
         self._ffdic = None
 
+
     def complete(self):
         self.cutoff_skin = self.DEFAULT_CUTOFF_SKIN
         self.cutoff_coul = self.DEFAULT_CUTOFF_COUL
@@ -263,7 +264,17 @@ class ParmEdStructure(Structure):
                 resorgs[a.residue.number] = a.residue.name
         return resorgs, resnames
 
+
+    def check_residue_number(self):
+        """
+        It seems that parmed 4.0.0 counts residue form 0
+        and 4.2.2 counts residue from 1
+        """
+        numbers = [at.residue.number for at in self.atoms]#; print(numbers)
+        self.count0 = min(numbers)
+
     def each_atoms_only_unique_residue(self, with_unique_type=False):
+        if not hasattr(self, 'count0'): self.check_residue_number()
         resorgs, _resnames = self.get_unique_residue()
         for atom in self.atoms:
             if atom.residue.number in resorgs.keys():

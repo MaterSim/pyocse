@@ -192,7 +192,7 @@ CUTNB {self.cutoff_ljout + self.cutoff_skin}  CTOFNB {self.cutoff_ljout}  CTONNB
         reschgs = [0] * len(resnames)
         for at in self.each_atoms_only_unique_residue():
             if at.residue.number in resorgs.keys():
-                reschgs[at.residue.number] += at.charge
+                reschgs[at.residue.number - self.count0] += at.charge
 
         for count, (resname, sio) in enumerate(sios.items()):
             #sio.write(f"\nRESI {resname}  0.000\n")
