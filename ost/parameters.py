@@ -320,7 +320,8 @@ def evaluate_ref_single(structure, numMol, calculator, natoms_per_unit,
 
     return ref_dic
 
-def augment_ref_par(strucs, numMols, calculator, steps, N_vibs, n_atoms_per_unit, folder, logfile='-', fmax=0.1):
+def augment_ref_par(strucs, numMols, calculator, steps, N_vibs,
+                    n_atoms_per_unit, folder, logfile='-', fmax=0.1):
     """
     parallel version
     """
@@ -345,8 +346,9 @@ def augment_ref_par(strucs, numMols, calculator, steps, N_vibs, n_atoms_per_unit
     os.chdir(pwd)
     return ref_dics
 
-def augment_ref_single(ref_structure, numMol, calculator, steps, N_vibs, n_atoms_per_unit, logfile='-',
-        fmax=0.1, max_E=1000, min_dE=5.0):
+def augment_ref_single(ref_structure, numMol, calculator, steps,
+                       N_vibs, n_atoms_per_unit, logfile='-',
+                       fmax=0.1, max_E=1000, min_dE=5.0):
     """
     parallel version
     Add max_E and min_dE to prevent adding the high-E structures
@@ -404,7 +406,9 @@ def augment_ref_single(ref_structure, numMol, calculator, steps, N_vibs, n_atoms
                                               calculator,
                                               n_atoms_per_unit,
                                               [True, False, True])
-                if ref_eng - min_dE < ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
+
+                value = ref_dic['energy']/ref_dic['replicate']
+                if ref_eng - min_dE < value < ref_eng + min_dE:
                     ref_dic['tag'] = 'elastic'
                     ref_dics.append(ref_dic)
 
@@ -421,7 +425,8 @@ def augment_ref_single(ref_structure, numMol, calculator, steps, N_vibs, n_atoms
                                               calculator,
                                               n_atoms_per_unit,
                                               [True, True, False])
-                if ref_eng - min_dE < ref_dic['energy']/ref_dic['replicate'] < ref_eng + min_dE:
+                value = ref_dic['energy']/ref_dic['replicate']
+                if ref_eng - min_dE < value < ref_eng + min_dE:
                     ref_dic['tag'] = 'vibration'
                     ref_dics.append(ref_dic)
     print('# Finalized data augmentation')
@@ -489,6 +494,7 @@ class ForceFieldParameters:
         self.reference_data = []
         self.ff_evaluator = ff_evaluator
         self.ref_evaluator = ref_evaluator
+
         if ref_evaluator == 'mace':
             self.calculator = mace_mp(model = "small",
                                       dispersion = True,
@@ -758,7 +764,8 @@ class ForceFieldParameters:
         return str(self)
 
 
-    def augment_reference(self, ref_structure, numMols, fmax=0.1, steps=250, N_vibs=10, logfile='-'):
+    def augment_reference(self, ref_structure, numMols, fmax=0.1,
+                          steps=250, N_vibs=10, logfile='-'):
         """
         Generate more reference data based on input structure, including
         1. Fully optimized structue
@@ -787,7 +794,8 @@ class ForceFieldParameters:
                                   fmax)
 
     #@timeit
-    def evaluate_ref_single(self, structure, numMols=[1], options=[True, True, True], relax=False):
+    def evaluate_ref_single(self, structure, numMols=[1],
+                            options=[True, True, True], relax=False):
         """
         evaluate the reference structure with the ref_evaluator
         """
@@ -1107,7 +1115,8 @@ class ForceFieldParameters:
         return values
 
 
-    def optimize_global(self, ref_dics, opt_dict, parameters0=None, steps=100, obj='MSE', t0=100, alpha=0.99):
+    def optimize_global(self, ref_dics, opt_dict, parameters0=None,
+                        steps=100, obj='MSE', t0=100, alpha=0.99):
         """
         FF parameters' optimization using the simulated annealing algorithm
         Todo, test new interface, add temp scheduling
@@ -1528,7 +1537,14 @@ class ForceFieldParameters:
                 box = structure.cell.cellpar()
                 coordinates = structure.get_positions()
 
-                ff_dic = self.evaluate_ff_single(lmp_strucs[i], numMols, options, lmp_dats[i], None, box, coordinates)
+                ff_dic = self.evaluate_ff_single(lmp_strucs[i],
+                                                 numMols,
+                                                 options,
+                                                 lmp_dats[i],
+                                                 None,
+                                                 box,
+                                                 coordinates)
+
                 e1 = ff_dic['energy']/ff_dic['replicate']
                 e2 = ref_dic['energy']/ff_dic['replicate']
                 de = abs(e1 + offset_opt - e2)
@@ -1605,6 +1621,7 @@ class ForceFieldParameters:
 
         Args:
             - strucs (list): list of ase strucs with the desired atomic orders
+            - numMos (list): list of
             - augment (bool):
             - steps (int):
             - N_vibs (int):
@@ -1619,10 +1636,10 @@ class ForceFieldParameters:
                 for numMol, struc in zip(numMols, strucs):
                     ref_structure = reset_lammps_cell(struc)
                     ref_dic = evaluate_ref_single(ref_structure,
-                                                numMol,
-                                                self.calculator,
-                                                self.natoms_per_unit,
-                                                [True, True, True])
+                                                  numMol,
+                                                  self.calculator,
+                                                  self.natoms_per_unit,
+                                                  [True, True, True])
                     ref_dic['tag'] = 'CSP'
                     ref_dics.append(ref_dic)
             else:
