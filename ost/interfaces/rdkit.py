@@ -176,10 +176,25 @@ def smiles_to_ase_and_pmg(smiles: str, molname: str) -> Tuple[Atoms, Molecule, i
         spin_multiplicity: int
         rdkit_mol: Chem.Mol
     """
+    from pyxtal.constants import single_smiles
+    import re
 
-    rdkit_mol = RDKIT.smiles_to_rdkit_mol(smiles, molname)
-    charge, spin_multiplicity = RDKIT.get_netcharge_and_spin_multiplicity(rdkit_mol)
-    ase_atoms = RDKIT.generate_conformers(rdkit_mol)[0]
+    if smiles in single_smiles:
+        pattern = r"[A-Za-z]+(?=[+\-]?[^A-Za-z]|$)"
+        matches = re.findall(pattern, smiles)
+        symbols = [matches[0]]  # ["Cl"]
+        if smiles[-1] == '+':
+            charge = 1.0
+        else:
+            charge = -1.0
+        spin_multiplicity = 1
+        ase_atoms = Atoms(symbols[0], positions=[(0, 0, 0)])
+        rdkit_mol = None
+    else:
+        rdkit_mol = RDKIT.smiles_to_rdkit_mol(smiles, molname)
+        charge, spin_multiplicity = RDKIT.get_netcharge_and_spin_multiplicity(rdkit_mol)
+        ase_atoms = RDKIT.generate_conformers(rdkit_mol)[0]
+
     charges = np.zeros(len(ase_atoms))
     magmoms = np.zeros(len(ase_atoms))
     charges[0] = charge
