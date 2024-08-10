@@ -25,7 +25,6 @@ from ost.lmp import LAMMPSCalculator
 from ost.interfaces.parmed import ParmEdStructure
 from ost.charmm import CHARMMStructure
 
-from mace.calculators import mace_mp
 from lammps import PyLammps  # , get_thermo_data
 
 #import multiprocessing as mp
@@ -462,7 +461,7 @@ class ForceFieldParameters:
                  style = 'gaff',
                  chargemethod = 'am1bcc',
                  ff_evaluator = 'lammps',
-                 ref_evaluator = 'mace',
+                 ref_evaluator = None, #'mace',
                  f_coef = 0.1,
                  s_coef = 1.0,
                  ncpu = 1,
@@ -476,7 +475,7 @@ class ForceFieldParameters:
             style (str): 'gaff' or 'openff'
             chargemethod (str): 'mmff94', 'am1bcc', 'am1-mulliken', 'gasteiger'
             ff_evaluator (str): 'lammps' or 'charmm'
-            ref_evaluator (str): 'mace' or 'trochani'
+            ref_evaluator (str): None or 'mace' or 'trochani'
             f_coef (float): coefficients for forces
             s_coef (float): coefficients for stress
         """
@@ -496,6 +495,7 @@ class ForceFieldParameters:
         self.ref_evaluator = ref_evaluator
 
         if ref_evaluator == 'mace':
+            from mace.calculators import mace_mp
             self.calculator = mace_mp(model = "small",
                                       dispersion = True,
                                       default_dtype = "float64",
@@ -754,7 +754,8 @@ class ForceFieldParameters:
         s += "Total:       {:3d}\n".format(len(self.params_init))
         s += "Constraints: {:3d}\n".format(len(self.constraints))
         s += "FF_code:    {:s}\n".format(self.ff_evaluator)
-        s += "Ref_code:   {:s}\n".format(self.ref_evaluator)
+        if self.ref_evaluator is not None:
+            s += "Ref_code:   {:s}\n".format(self.ref_evaluator)
         s += "N_CPU:       {:3d}\n".format(self.ncpu)
         s += "F_coef:      {:.3f}\n".format(self.f_coef)
         s += "S_coef:      {:.3f}\n".format(self.s_coef)
@@ -843,7 +844,7 @@ class ForceFieldParameters:
                            positions=None,
                            parameters=None):
         """
-        evaluate the reference structure with the ff_evaluatort
+        evaluate the reference structure with the ff_evaluator
 
         Args:
             lmp_struc: ase structure
