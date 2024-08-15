@@ -12,8 +12,7 @@ import matplotlib.pyplot as plt
 
 from ase import Atoms
 from ase.optimize.fire import FIRE
-from ase.constraints import ExpCellFilter
-from ase.spacegroup.symmetrize import FixSymmetry
+from ase.constraints import UnitCellFilter, FixSymmetry
 
 from pyxtal import pyxtal
 from pyxtal.util import ase2pymatgen
@@ -304,7 +303,7 @@ def evaluate_ref_single(structure, numMol, calculator, natoms_per_unit,
     structure.set_calculator(calculator)
     if relax:
         structure.set_constraint(FixSymmetry(structure))
-        ecf = ExpCellFilter(structure)
+        ecf = UnitCellFilter(structure)
         dyn = FIRE(ecf, a=0.1, logfile='-')
         dyn.run(fmax=0.1, steps=150)
         structure.set_constraint()
@@ -363,7 +362,7 @@ def augment_ref_single(ref_structure, numMol, calculator, steps,
     print('# Relaxation to get the ground state: 1')
     ref_structure.set_calculator(calculator)
     ref_structure.set_constraint(FixSymmetry(ref_structure))
-    ecf = ExpCellFilter(ref_structure)
+    ecf = UnitCellFilter(ref_structure)
     dyn = FIRE(ecf, a=0.1, logfile=logfile)
     dyn.run(fmax=fmax, steps=steps)
     ref_structure.set_constraint()
