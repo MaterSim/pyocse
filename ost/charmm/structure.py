@@ -54,6 +54,14 @@ class CHARMMStructure(ParmEdStructure):
 
     _progname = "CHARMM"
 
+    @property
+    def atomtypes_with_resname(self):
+        if not hasattr(self, "_atomtype_with_resname"):
+            ps = self.get_parameterset_with_resname_as_prefix()
+            self._atomtypes_with_resname = ps.atom_types
+        return self._atomtypes_with_resname
+
+
     def write_inp(self, of, base: str):
 
         io = StringIO()
@@ -111,14 +119,16 @@ class CHARMMStructure(ParmEdStructure):
         for k, t in dic.items():
             of.write("%2s %2s %2s %9.5f   %10.5f\n" % (*k, t.k, t.theteq))
         of.write("\nDIHEDRAL\n")
-        imps = []
-        for d in self.dihedrals:
-            if d.improper:
-                imps.append(d.type)
+        #imps = []
+        #for d in self.dihedrals:
+        #    if d.improper:
+        #        imps.append(d.type) #print(d.type)
         dic = self.get_keys_and_types(self.dihedrals)
+        #for k, t in dic.items(): print(*k[0])
         imp = StringIO()
         for k, t in dic.items():
-            if t not in imps:
+            #print(k)
+            if not k[1][1]: #t not in imps:
                 of.write("%2s %2s %2s %2s %9.6f %6d %7.3f\n" % (*k[0], t.phi_k, t.per, t.phase))
             else:
                 imp.write("%2s %2s %2s %2s %9.6f %6d %7.3f\n" % (*k[0], t.phi_k, t.per, t.phase))
@@ -133,14 +143,19 @@ CUTNB {self.cutoff_ljout + self.cutoff_skin}  CTOFNB {self.cutoff_ljout}  CTONNB
 !             (kcal/mol)    (A)
 """
         )
-        for (k, at) in self.parameterset.atom_types.items():
-            fmt = "%2s %9.3f %9.5f %9.5f %9.5f %9.5f %9.5f\n"
-            heps = -at.epsilon * 0.5
-            heps = accurate_round(-0.5 * at.epsilon)
-            if at.rmin == 0 or at.epsilon == 0:
-                of.write(fmt % (at.name, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
-            else:
-                of.write(fmt % (at.name, 0.0, -at.epsilon, at.rmin, 0.0, heps, at.rmin))
+        #for (k, at) in self.parameterset.atom_types.items():
+        fmt = "%2s %9.3f %9.5f %9.5f %9.5f %9.5f %9.5f\n"
+        names = []
+        for (k, at) in self.atomtypes_with_resname.items():
+            at_name = at.name[3:]
+            if at_name not in names:
+                heps = -at.epsilon * 0.5
+                heps = accurate_round(-0.5 * at.epsilon)
+                if at.rmin == 0 or at.epsilon == 0:
+                    of.write(fmt % (at_name, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
+                else:
+                    of.write(fmt % (at_name, 0.0, -at.epsilon, at.rmin, 0.0, heps, at.rmin))
+                names.append(at_name)
         of.write("\nEND\n")
 
     def get_atom_info(self):
@@ -174,8 +189,14 @@ CUTNB {self.cutoff_ljout + self.cutoff_skin}  CTOFNB {self.cutoff_ljout}  CTONNB
         for name in resnames:
             sios[name] = StringIO()
 
-        for resname, sio in sios.items():
-            sio.write(f"\nRESI {resname}  0.000\n")
+        reschgs = [0] * len(resnames)
+        for at in self.each_atoms_only_unique_residue():
+            if at.residue.number in resorgs.keys():
+                reschgs[at.residue.number - self.count0] += at.charge
+
+        for count, (resname, sio) in enumerate(sios.items()):
+            #sio.write(f"\nRESI {resname}  0.000\n")
+            sio.write("\nRESI {:s}  {:8.6f}\n".format(resname, reschgs[count]))
             sio.write("GROUP\n")
 
         for at in self.each_atoms_only_unique_residue():

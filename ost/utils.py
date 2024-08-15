@@ -9,11 +9,24 @@ import warnings
 from decimal import ROUND_05UP, ROUND_HALF_EVEN, Decimal
 from time import sleep
 from xml.dom.minidom import parseString
+import numpy as np
 
 import toml
 from xmltodict import unparse
 
 warnings.filterwarnings("ignore")
+
+def reset_lammps_cell(atoms0):
+    from ase.calculators.lammpslib import convert_cell
+
+    atoms = atoms0.copy()
+    mat, coord_transform = convert_cell(atoms0.cell)
+    if coord_transform is not None:
+        pos = np.dot(atoms0.positions, coord_transform.T)
+        atoms.set_cell(mat.T)
+        atoms.set_positions(pos)
+    return atoms
+
 
 
 @contextlib.contextmanager

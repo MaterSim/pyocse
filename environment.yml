@@ -3,9 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.9.13
-  - rdkit=2022.09.4
-  - parmed=3.4.3
-  - openbabel=3.1.1
+  - parmed=4.0.0
   - openmm=8.0.0
   - openff-forcefields=2023.04.1
   - openff-toolkit=0.14.3
@@ -13,12 +11,14 @@ dependencies:
   - openff-units=0.2.0
   - openff-utilities=0.1.8
   - openff-interchange=0.3.18
-  - ambertools=22.4
   - toml=0.10.2
   - xmltodict=0.13.0
-  - pyxtal=0.6.2
-  - pymatgen=2023.12.18
   #Dev tools at github commit
+  - pip:
+    - pyxtal==0.6.3
+    - git+https://github.com/ACEsuit/mace@main
+    - lammps==2023.8.2.2.0
+    - torch-dftd==0.4.0
   - black
   - flake8
   - isort
@@ -26,3 +26,7 @@ dependencies:
   - pytest
   - pytest-cov
   - pdoc3
+    #- pymatgen=2023.12.18
+    #- ambertools=22.4
+    #- openbabel=3.1.1
+    #- rdkit=2022.09.4

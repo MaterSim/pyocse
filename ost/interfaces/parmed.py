@@ -36,13 +36,13 @@ class ParmEdStructure(Structure):
         self.cutoff_ljin = cutoff_ljin
         self.cutoff_ljout = cutoff_ljout
 
-    @property
+    #@property
     def gewald(self):
         # from openmm definition
         # http://docs.openmm.org/latest/userguide/theory/02_standard_forces.html
         return (-np.log(self.ewald_error_tolerance * 2.0)) ** 0.5 / self.cutoff_coul
 
-    @property
+    #@property
     def fftgrid(self):
         """
         determine the grid used for
@@ -128,8 +128,8 @@ class ParmEdStructure(Structure):
 
     @classmethod
     def from_structure(cls, structure):
-        inst = structure.copy(cls)
-        return inst
+        return structure.copy(cls)
+        #return inst
 
     @property
     def parameterset(self):
@@ -172,6 +172,15 @@ class ParmEdStructure(Structure):
         self.cutoff_ljout = self.DEFAULT_CUTOFF_LJOUT
         self.ewald_error_tolerance = self.DEFAULT_EWALD_ERROR_TOLERANCE
         self._ffdic = None
+
+
+    def complete(self):
+        self.cutoff_skin = self.DEFAULT_CUTOFF_SKIN
+        self.cutoff_coul = self.DEFAULT_CUTOFF_COUL
+        self.cutoff_ljin = self.DEFAULT_CUTOFF_LJIN
+        self.cutoff_ljout = self.DEFAULT_CUTOFF_LJOUT
+        self.ewald_error_tolerance = self.DEFAULT_EWALD_ERROR_TOLERANCE
+
 
     # def __iadd__(self, other):
     #    new = super().__iadd__(other)
@@ -228,17 +237,16 @@ class ParmEdStructure(Structure):
     @staticmethod
     def get_keys_and_types(props):
         from collections import OrderedDict
-
         from parmed import DihedralType
 
         typedict = OrderedDict()
         for prop in props:
             orderedkey = ParmEdStructure._get_keys_from_parmed_topology(prop)
+            if type(prop.type) == DihedralType:
+                per = prop.type.per
+                imp = prop.improper
+                orderedkey = (orderedkey, (per, imp))#; print(orderedkey)
             if orderedkey not in typedict:
-                if type(prop.type) == DihedralType:
-                    per = prop.type.per
-                    imp = prop.improper
-                    orderedkey = (orderedkey, (per, imp))
                 typedict[orderedkey] = prop.type
             else:
                 td = typedict[orderedkey]
@@ -256,7 +264,17 @@ class ParmEdStructure(Structure):
                 resorgs[a.residue.number] = a.residue.name
         return resorgs, resnames
 
+
+    def check_residue_number(self):
+        """
+        It seems that parmed 4.0.0 counts residue form 0
+        and 4.2.2 counts residue from 1
+        """
+        numbers = [at.residue.number for at in self.atoms]#; print(numbers)
+        self.count0 = min(numbers)
+
     def each_atoms_only_unique_residue(self, with_unique_type=False):
+        if not hasattr(self, 'count0'): self.check_residue_number()
         resorgs, _resnames = self.get_unique_residue()
         for atom in self.atoms:
             if atom.residue.number in resorgs.keys():

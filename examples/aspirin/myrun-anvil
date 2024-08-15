@@ -1,0 +1,20 @@
+#!/bin/sh -l
+#SBATCH -J asp
+#SBATCH -o %x.%j.out
+#SBATCH -A dmr180040
+#SBATCH -p shared #wholenode
+#SBATCH --ntasks-per-node=64
+#SBATCH --mem=96G
+#SBATCH --export=ALL
+#SBATCH --time=12:00:00
+
+module purge
+conda activate ost
+
+export OMP_NUM_THREADS=1
+
+CMD="python opt-hpc.py > log2"
+echo $CMD
+eval $CMD
+
+#sbatch -J COUMAR13 -N 1 myrun-uncc
