@@ -48,6 +48,3 @@ check the `3pf.py`
 
 - Qiang Zhu (qzhu8@uncc.edu)
 - Shinnosuke Hattori (shinnosuke.hattori@sony.com)
-
-
-

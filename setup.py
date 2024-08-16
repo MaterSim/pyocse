@@ -1,13 +1,9 @@
 #from setuptools import find_packages, setup
 from distutils.core import setup
 import setuptools  # noqa
-from os import path
 
-this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
-    long_description = f.read()
-
-exec(open("ost/version.py").read())
+with open("README.md") as fh:
+    long_description = fh.read()
 
 setup(
     name="ost",
@@ -15,6 +11,9 @@ setup(
     author="Qiang Zhu, Shinnosule Hattori",
     description="Organic Simulation Toolkit",
     include_package_data=True,
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/MaterSim/OST",
     packages=[
         "ost",
         "ost.interfaces",
