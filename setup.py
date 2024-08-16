@@ -6,14 +6,14 @@ with open("README.md") as fh:
     long_description = fh.read()
 
 setup(
-    name="ost",
+    name="pyocse",
     version="0.1.0",
     author="Qiang Zhu, Shinnosule Hattori",
-    description="Organic Simulation Toolkit",
+    description="Python Organic Crystal Simulation Environment",
     include_package_data=True,
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/MaterSim/OST",
+    url="https://github.com/MaterSim/pyocse",
     packages=[
         "ost",
         "ost.interfaces",
