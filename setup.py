@@ -11,7 +11,7 @@ exec(open("ost/version.py").read())
 
 setup(
     name="ost",
-    version=__version__,
+    version="0.1.0",
     author="Qiang Zhu, Shinnosule Hattori",
     description="Organic Simulation Toolkit",
     include_package_data=True,
