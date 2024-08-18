@@ -9,7 +9,7 @@ from ase.calculators.lammpslib import LAMMPSlib
 from ase.geometry import wrap_positions
 from ase import units
 
-from ost.utils import which_lmp
+from pyocse.utils import which_lmp
 
 seed = 123456789
 
@@ -593,7 +593,7 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
         *args,
         **lwargs,
     ):
-        
+
         self.struc = struc
         self.base = base
         cmdargs = ["-screen", "none", "-log", f"{base}.log", "-nocite"]
@@ -634,7 +634,7 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
         #t1=time(); print("lmp_instance", t1-t0)
         self.restart = False
         self.initialize()
-        if not skip_dump: 
+        if not skip_dump:
             if not os.path.exists(dumpdir): os.mkdir(dumpdir)
             self.compute_and_dump_settings()
         #t2=time(); print("lmp_initialize", t2-t1)

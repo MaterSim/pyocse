@@ -1,3 +1,3 @@
-from ost.charmm.structure import CHARMMStructure
+from pyocse.charmm.structure import CHARMMStructure
 
 __all__ = ["CHARMMStructure"]

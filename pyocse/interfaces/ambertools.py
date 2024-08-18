@@ -2,7 +2,7 @@
 import shutil
 from pathlib import Path
 from typing import Dict, Optional, Tuple
-from ost.utils import procrun
+from pyocse.utils import procrun
 
 
 # modules

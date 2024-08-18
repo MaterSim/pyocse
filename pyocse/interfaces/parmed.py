@@ -13,7 +13,7 @@ from parmed.modeller.residue import ResidueTemplateContainer
 from parmed.openmm import OpenMMParameterSet, energy_decomposition_system, load_topology
 from xmltodict import parse
 
-from ost.utils import dict_to_xmlstr, temporary_directory_change
+from pyocse.utils import dict_to_xmlstr, temporary_directory_change
 
 
 class ParmEdStructure(Structure):

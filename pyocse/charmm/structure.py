@@ -3,8 +3,8 @@ from io import StringIO
 from parmed import Structure
 from parmed.charmm import CharmmCrdFile, CharmmParameterSet, CharmmPsfFile
 
-from ost.interfaces.parmed import ParmEdStructure
-from ost.utils import accurate_round
+from pyocse.interfaces.parmed import ParmEdStructure
+from pyocse.utils import accurate_round
 
 INP_TEMPLATE = """
 ! Automated Charmm calculation
