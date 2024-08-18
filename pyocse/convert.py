@@ -2,15 +2,15 @@
 from pathlib import Path
 from typing import Optional
 
-from ost.interfaces.ambertools import run_antechamber
-from ost.interfaces.parmed import amber_to_pdstruc, ommxml_to_pdstruc, ParmEdStructure
-from ost.interfaces.rdkit import smiles_to_ase_and_pmg, RDKIT
-from ost.utils import dump_toml, temporary_directory_change
+from pyocse.interfaces.ambertools import run_antechamber
+from pyocse.interfaces.parmed import amber_to_pdstruc, ommxml_to_pdstruc, ParmEdStructure
+from pyocse.interfaces.rdkit import smiles_to_ase_and_pmg, RDKIT
+from pyocse.utils import dump_toml, temporary_directory_change
+from pyocse.interchange_parmed import _to_parmed
 
 from openff.toolkit.topology import Molecule, Topology
 from openff.toolkit.typing.engines.smirnoff import ForceField
 from openff.interchange import Interchange
-from ost.interchange_parmed import _to_parmed
 from openff.units import unit
 
 

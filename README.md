@@ -1,4 +1,4 @@
-# Organic Simulation Toolkit (OST)
+# Python Organic Crystal Simulation Environment (PYOCSE)
 
 This is a public repository that aims to automate the simulation of organic crystals with a primary emphasis on the mechanical properties of organic crystals. Currently, we focus on two components:
 
@@ -10,15 +10,15 @@ git clone this repository and then go to the root directory
 
 ```
 conda install -c conda-forge mamba
-mamba env create -n ost 
-conda activate ost
+mamba env create -n ocse
+conda activate osce
 pip install .
 ```
 
-*If you want to update the existing ost enviroment*
+*If you want to update the existing ocse enviroment*
 
 ```
-conda activate ost
+conda activate ocse
 mamba env update --file environment.yml
 ```
 

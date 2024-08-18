@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import numpy as np
 import toml
-from ost.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
-from ost.lmp import LAMMPSStructure
+from pyocse.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
+from pyocse.lmp import LAMMPSStructure
 from pkg_resources import resource_filename
 from monty.serialization import loadfn
 import os, re
@@ -36,7 +36,7 @@ class Builder():
             self.smiles = ".".join(smis)
         else:
             self.dics = []
-            from ost.convert import convert_gaff, convert_openff
+            from pyocse.convert import convert_gaff, convert_openff
             for i, smi in enumerate(smiles):
                 smi = smiles[i]
                 if style == 'gaff':
@@ -887,7 +887,7 @@ class Builder():
 
 
         # Read the template information
-        template = (rf("ost", "templates/" + filename))
+        template = (rf("pyocse", "templates/" + filename))
         if not os.path.exists(template):
             raise RuntimeError('Cannot find the template', template)
         else:
@@ -1040,8 +1040,8 @@ if __name__ == "__main__":
     import os
 
     #=== Set the crystal model
-    cif  = "ost/data/ACSALA17.cif"
-    toml_file = "ost/data/aspirin_gas.toml"
+    cif  = "pyocse/data/ACSALA17.cif"
+    toml_file = "pyocse/data/aspirin_gas.toml"
     bu = Builder(toml_files=[toml_file])
     bu.set_xtal(cif=cif)
 

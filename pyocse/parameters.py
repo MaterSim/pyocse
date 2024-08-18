@@ -18,11 +18,11 @@ from pyxtal import pyxtal
 from pyxtal.util import ase2pymatgen
 from pymatgen.core import Structure
 
-from ost.utils import reset_lammps_cell
-from ost.forcefield import forcefield
-from ost.lmp import LAMMPSCalculator
-from ost.interfaces.parmed import ParmEdStructure
-from ost.charmm import CHARMMStructure
+from pyocse.utils import reset_lammps_cell
+from pyocse.forcefield import forcefield
+from pyocse.lmp import LAMMPSCalculator
+from pyocse.interfaces.parmed import ParmEdStructure
+from pyocse.charmm import CHARMMStructure
 
 from lammps import PyLammps  # , get_thermo_data
 

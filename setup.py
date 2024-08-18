@@ -7,7 +7,7 @@ with open("README.md") as fh:
 
 setup(
     name="pyocse",
-    version="0.1.0",
+    version="0.1.1",
     author="Qiang Zhu, Shinnosule Hattori",
     description="Python Organic Crystal Simulation Environment",
     include_package_data=True,
@@ -15,16 +15,16 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/MaterSim/pyocse",
     packages=[
-        "ost",
-        "ost.interfaces",
-        "ost.lmp",
-        "ost.charmm",
-        "ost.data",
-        "ost.templates",
+        "pyocse",
+        "pyocse.interfaces",
+        "pyocse.lmp",
+        "pyocse.charmm",
+        "pyocse.data",
+        "pyocse.templates",
     ],
     package_data={
-        "ost.data": ["*"],
-        "ost.templates": ['*.in'],
+        "pyocse.data": ["*"],
+        "pyocse.templates": ['*.in'],
     },
     classifiers=[
         "Programming Language :: Python :: 3",

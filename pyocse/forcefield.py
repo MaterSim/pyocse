@@ -3,10 +3,10 @@ from openff.interchange import Interchange
 from openff.toolkit.topology import Molecule, Topology
 from openff.toolkit.typing.engines.smirnoff import ForceField
 from openff.units import unit
-from ost.interchange_parmed import _to_parmed
-from ost.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
-from ost.interfaces.rdkit import smiles_to_ase_and_pmg
-from ost.lmp import LAMMPSStructure
+from pyocse.interchange_parmed import _to_parmed
+from pyocse.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
+from pyocse.interfaces.rdkit import smiles_to_ase_and_pmg
+from pyocse.lmp import LAMMPSStructure
 import numpy as np
 from pyxtal.constants import single_smiles
 import re
@@ -146,7 +146,7 @@ class forcefield:
         """
         set the cell into lammps format
         """
-        from ost.utils import reset_lammps_cell
+        from pyocse.utils import reset_lammps_cell
         return reset_lammps_cell(atoms0)
 
     def update_parameters(self, parameters):
@@ -227,9 +227,9 @@ def get_gaff(smiles, chargemethod="gas", base="ff"):
     """
     from pathlib import Path
 
-    from ost.interfaces.ambertools import run_antechamber
-    from ost.interfaces.parmed import amber_to_pdstruc
-    from ost.utils import temporary_directory_change
+    from pyocse.interfaces.ambertools import run_antechamber
+    from pyocse.interfaces.parmed import amber_to_pdstruc
+    from pyocse.utils import temporary_directory_change
 
     # with temporary_directory_change(cleanup=False, prefix='tmp'):
     with temporary_directory_change(cleanup=True, prefix="tmp"):
