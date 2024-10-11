@@ -38,16 +38,16 @@ pair_modify mix arithmetic shift no tail yes
     TailLmpInput = """
 #pair_modify mix arithmetic
 thermo_style custom step temp vol press etotal pe ke epair ecoul elong evdwl ebond eangle edihed eimp emol etail \
-#    cella cellb cellc cellalpha cellbeta cellgamma density pxx pyy pzz pxy pxy pyz
+ cella cellb cellc cellalpha cellbeta cellgamma density pxx pyy pzz pxy pxy pyz
 thermo_modify lost ignore flush yes
 
 #compute peatom all pe/atom
-#dump 1 all custom 1 dump.lammpstrj id type q x y z fx fy fz c_peatom element
+#dump 1 all custom 1 dump.lammpstrj id type q xu yu zu fx fy fz c_peatom element
 #dump_modify 1 sort id pad 9 element {eles:}
 
 #minimize 1e-5 1e-5 100 100
 #run 0
-fix ensemble all nve
+#fix ensemble all nve
 variable pxx equal pxx
 variable pyy equal pyy
 variable pzz equal pzz
