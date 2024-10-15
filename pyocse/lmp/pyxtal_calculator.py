@@ -29,7 +29,7 @@ def lammps_read(fname, sym_pos=-2):
 
     ret = [
         float(step[last_thermo_pos]) / float(spcpu[last_thermo_pos]),
-        pe[last_thermo_pos],
+        float(pe[last_thermo_pos]),
         (" ").join([
             str(a[last_thermo_pos]),
             str(b[last_thermo_pos]),
@@ -38,7 +38,7 @@ def lammps_read(fname, sym_pos=-2):
             str(bet[last_thermo_pos]),
             str(gam[last_thermo_pos]),
         ]),
-        spcpu[sym_pos]
+        int(spcpu[sym_pos])
     ]
     return ret
 
@@ -61,6 +61,7 @@ class LMP:
         prefix="pyxtal",
         exe="lmp",
         timeout=300,
+        debug=True,
     ):
         self.errorE = 1e+5
         self.error = False
@@ -71,6 +72,7 @@ class LMP:
         #else:
         self.exe = exe
         self.timeout = timeout
+        self.debug = debug
 
         # Files IO
         self.prefix = prefix
@@ -84,6 +86,7 @@ class LMP:
         # Structure Manipulation
         #struc.resort()
         self.structure = struc
+        self.spacegroup_number = struc.group.number
 
     def write(self):
         xtal = self.structure
@@ -92,18 +95,26 @@ class LMP:
 
         additional_lmpcmds_box = """
 min_style cg
-fix 1 all symmetry 5e-5 false false true true
-minimize 1e-5 1e-5 20 20
+#minimize 0 1e-4 10 10 #1
 
-unfix 1
-fix 2 all box/relax/symmetry symprec 5e-5 aniso 1000 vmax 0.001
-minimize 1e-5 1e-5 50 50
-unfix 2
-fix 2 all box/relax/symmetry symprec 5e-5 aniso 0.0001 vmax 0.002
-minimize 1e-5 1e-5 500 500
-unfix 2
-fix 2 all box/relax/symmetry symprec 5e-5 tri 0.0001 vmax 0.0001
-minimize 0 1e-6 500 500
+fix br all symmetry 1e-4
+minimize 0 1e-4 200 200 #2
+
+unfix br 
+fix  br all box/relax/symmetry symprec 1e-4 aniso 0 vmax 0.001 fixedpoint 0 0 0 nreset 50
+minimize 0 1e-4 500 500 #3
+
+unfix br 
+fix  br all box/relax/symmetry symprec 1e-4 aniso 0 vmax 0.001 fixedpoint 0 0 0 nreset 50
+minimize 0 1e-4 500 500 #4
+
+unfix br
+fix br all box/relax/symmetry symprec  1e-4 tri 0 vmax 0.0002 fixedpoint 0 0 0 nreset 10
+minimize 0 1e-4 500 500 #5
+
+unfix br
+fix br all symmetry 1e-4 false false
+minimize 0 1e-4 200 200 #2
         """
         lmpintxt = open("tmp.in").read()
         lmpintxt = lmpintxt.replace("lmp.dat", self.dat)
@@ -117,18 +128,37 @@ minimize 0 1e-6 500 500
     def read(self):
         from ase.io import read
         step, eng, cell, sg = lammps_read(self.log)
-        self.structure.energy = float(eng)
+        if sg != self.spacegroup_number:
+            self.structure.energy = self.errorE
+            if self.debug:
+                print("Space group was changed during relaxation. ", self.spacegroup_number, " -> ", sg, "@", self.label)
+        else:
+            self.structure.energy = float(eng)
         ase_struc = read(self.dump, format='lammps-dump-text', index=-1)
         positions = ase_struc.get_positions()
 
         count = 0
-        for _i, site in enumerate(self.structure.mol_sites):
-            coords = positions[count: count + len(site.molecule.mol)]
-            site.update(coords, self.structure.lattice, absolute=True)
-            count += len(site.molecule.mol)
-        # print("after relaxation  : ", self.structure.lattice, "iter: ", self.structure.iter)
-        self.structure.optimize_lattice()
-        self.structure.update_wyckoffs()
+        try:
+            for _i, site in enumerate(self.structure.mol_sites):
+                coords = positions[count: count + len(site.molecule.mol)]
+                site.update(coords, self.structure.lattice, absolute=True)
+                count += len(site.molecule.mol)
+            # print("after relaxation  : ", self.structure.lattice, "iter: ", self.structure.iter)
+            self.structure.optimize_lattice()
+            self.structure.update_wyckoffs()
+        except Exception:
+            self.structure.energy = self.errorE
+            self.error
+            if self.debug:
+                print("Cannot retrieve Structure after optimization")
+                print("lattice", self.structure.lattice)
+                self.structure.to_file("1.cif")
+                print("Check 1.cif in ", os.getcwd())
+                pairs = self.structure.check_short_distances()
+                if len(pairs) > 0:
+                    print(self.structure.to_file())
+                    print("short distance pair", pairs)
+
 
     def run(self, clean=True):
         """
