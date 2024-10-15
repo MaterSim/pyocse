@@ -6,7 +6,7 @@ import numpy as np
 from pyocse.parameters import ForceFieldParameters
 import lammps_logfile
 
-def lammps_read(fname, sym_pos=-2):
+def lammps_read(fname, sym_pos=-1):
 
     log = lammps_logfile.File(fname)
     step = log.get("Step")
@@ -95,7 +95,7 @@ class LMP:
 
         additional_lmpcmds_box = """
 variable vmax equal 0.005
-variable ptarget equal 500
+variable ptarget equal 1000
 min_style cg
 
 fix br all symmetry 1e-4
@@ -141,6 +141,7 @@ minimize 0 1e-6 200 200 #2
             self.structure.energy = float(eng)
         ase_struc = read(self.dump, format='lammps-dump-text', index=-1)
         positions = ase_struc.get_positions()
+        self.structure.lattice.set_para(ase_struc.get_cell_lengths_and_angles())
 
         count = 0
         try:
