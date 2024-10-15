@@ -94,33 +94,38 @@ class LMP:
         lmp_struc.write_lammps(fin="tmp.in", fdat=self.dat)
 
         additional_lmpcmds_box = """
+variable vmax equal 0.005
+variable ptarget equal 500
 min_style cg
-#minimize 0 1e-4 10 10 #1
 
 fix br all symmetry 1e-4
-minimize 0 1e-4 200 200 #2
+minimize 0 1e-4 200 200 #1
 
 unfix br 
-fix  br all box/relax/symmetry symprec 1e-4 aniso 0 vmax 0.001 fixedpoint 0 0 0 nreset 50
+fix  br all box/relax/symmetry symprec 1e-4 x 1 y ${ptarget} z 1 xz 1 vmax ${vmax} fixedpoint 0 0 0 nreset 50
 minimize 0 1e-4 500 500 #3
 
 unfix br 
-fix  br all box/relax/symmetry symprec 1e-4 aniso 0 vmax 0.001 fixedpoint 0 0 0 nreset 50
-minimize 0 1e-4 500 500 #4
+fix  br all box/relax/symmetry symprec 1e-4 x ${ptarget} y 1 z ${ptarget} xz ${ptarget} vmax ${vmax} fixedpoint 0 0 0 nreset 50
+minimize 0 1e-4 500 500 #3
 
 unfix br
-fix br all box/relax/symmetry symprec  1e-4 tri 0 vmax 0.0002 fixedpoint 0 0 0 nreset 10
-minimize 0 1e-4 500 500 #5
+fix br all box/relax/symmetry symprec  1e-4 x 1 y 1 z 1 xz ${ptarget} vmax ${vmax} fixedpoint 0 0 0 nreset 50
+minimize 0 1e-6 500 500 #5
+
+unfix br
+fix br all box/relax/symmetry symprec 1e-4 symcell false symposs false x 1 y 1 z 1 xz 1 vmax ${vmax} fixedpoint 0 0 0 nreset 50
+minimize 0 1e-6 500 500 #5
 
 unfix br
 fix br all symmetry 1e-4 false false
-minimize 0 1e-4 200 200 #2
+minimize 0 1e-6 200 200 #2
         """
         lmpintxt = open("tmp.in").read()
         lmpintxt = lmpintxt.replace("lmp.dat", self.dat)
         lmpintxt = lmpintxt.replace("custom step ", "custom step spcpu ")
         lmpintxt = lmpintxt.replace("#compute ", "compute ")
-        lmpintxt = lmpintxt.replace("#dump ", "dump ")
+        lmpintxt = lmpintxt.replace("#dump 1 all custom 1 ", "dump 1 all custom 100 ")
         lmpintxt = lmpintxt.replace("#dump_modify ", "dump_modify ")
         lmpintxt += additional_lmpcmds_box
         open(self.inp, 'w').write(lmpintxt)
