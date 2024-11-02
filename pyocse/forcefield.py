@@ -79,7 +79,7 @@ class forcefield:
                 self.partial_charges.append([charge])
 
             else:
-                molecule = Molecule.from_smiles(smi)
+                molecule = Molecule.from_smiles(smi, allow_undefined_stereo=True)
                 molecule.assign_partial_charges(self.chargemethod)
                 self.partial_charges.append(molecule.partial_charges)
         # print(self.partial_charges)
