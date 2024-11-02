@@ -1,4 +1,4 @@
-name: ost
+name: pyocse
 channels:
   - conda-forge
 dependencies:
