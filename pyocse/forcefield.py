@@ -209,7 +209,7 @@ def get_openff(smiles, chargemethod, ff_name="openff-2.0.0.offxml"):
     """
     Get Openff parameters from smiles
     """
-    molecule = Molecule.from_smiles(smiles)
+    molecule = Molecule.from_smiles(smiles, allow_undefined_stereo=True)
     molecule.assign_partial_charges(chargemethod)
     topology = Topology.from_molecules(molecule)
     forcefield = get_openff_with_silicon(ff_name)
