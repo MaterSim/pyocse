@@ -143,7 +143,6 @@ def compute_r2(y_true, y_pred):
 def get_lmp_efs(lmp_struc, lmp_in, lmp_dat):
     if not hasattr(lmp_struc, 'ewald_error_tolerance'):
         lmp_struc.complete()
-    #print('get_lmp_efs', len(dir(lmp_struc)), hasattr(lmp_struc, 'ewald_error_tolerance'))
     calc = LAMMPSCalculator(lmp_struc, lmp_in=lmp_in, lmp_dat=lmp_dat)
     return calc.express_evaluation()
 
@@ -919,7 +918,6 @@ class ForceFieldParameters:
 
         total_obj = 0
         eng_arr, force_arr, stress_arr = [[], []], [[], []], [[], []]
-
         lmp_strucs, lmp_dats = self.get_lmp_inputs_from_ref_dics(ref_dics)
 
         if self.ncpu == 1:
@@ -929,7 +927,6 @@ class ForceFieldParameters:
                 ff_dic = self.evaluate_ff_single(lmp_strucs[i], numMol, options,
                                                  lmp_dats[i], lmp_in,
                                                  )
-                #total_obj += self.obj_from_ffdic(ff_dic, ref_dic, e_offset, E_only)
                 efs = (ff_dic['energy'], ff_dic['forces'], ff_dic['stress'])
                 res = obj_from_efs(efs,
                                    ref_dic,
@@ -987,12 +984,13 @@ class ForceFieldParameters:
                         force_arr[1].extend(forces[1])
                         stress_arr[0].extend(stresses[0])
                         stress_arr[1].extend(stresses[1])
-            if obj == 'R2':
-                #print(eng_arr[0])
-                total_obj -= compute_r2(eng_arr[0], eng_arr[1])
-                total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
-                total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
-                #print('BBBBBBBBBBBb', self.f_coef, compute_r2(force_arr[0], force_arr[1]))
+
+        if obj == 'R2':
+            #print(eng_arr[0])
+            total_obj -= compute_r2(eng_arr[0], eng_arr[1])
+            total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
+            total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
+            #print('BBBBBBBBBBBb', self.f_coef, compute_r2(force_arr[0], force_arr[1]))
 
         return total_obj
 
@@ -1047,13 +1045,13 @@ class ForceFieldParameters:
                     x.extend(opt_dict[term])
                     ids.append(ids[-1] + len(opt_dict[term]))
                 else:
-                    x.extend([1.0]) #TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+                    x.extend([1.0])
             else:
                 if term != 'charge':
                     x.extend(opt_dict[term])
                     ids.append(len(opt_dict[term]))
                 else:
-                    x.extend([1.0]) #TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+                    x.extend([1.0])
 
         #print("Starting", x)
         #x = [item for sublist in values for item in sublist]
@@ -1184,24 +1182,21 @@ class ForceFieldParameters:
         """
         x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0, obj)
 
-        #def my_callback(xk):
-        #    print(f"Solution: {xk[:2]}, Objective: {last_function_value}")
         class CallbackFunction:
             def __init__(self):
                 self.iteration = 0  # Initialize iteration count
 
             def callback(self, xk):
                 self.iteration += 1  # Increment iteration count
-                if self.iteration % 10 == 0:  # Check if it's a multiple of 10
-                    print("Step {:4d} {:.4f}".format(self.iteration, last_function_value))
+                if self.iteration % 10 == 0:
+                    print(f"Step {self.iteration:4d} {last_function_value:.4f}")
 
         callback = CallbackFunction() if self.verbose else None
 
-        res = minimize(#obj_fun,
-                       obj_fun, #objective_function_wrapper,
+        res = minimize(obj_fun, #objective_function_wrapper,
                        x,
                        method = 'Nelder-Mead',
-                       args = fun_args, #(ref_dics, parameters0, e_offset, ids, charges),
+                       args = fun_args, #(ref_dics, paras, e_offset, ids, charges),
                        options = {'maxiter': steps, 'disp': True},
                        bounds = bounds,
                        callback = callback.callback,
@@ -1214,7 +1209,7 @@ class ForceFieldParameters:
 
     def optimize_offset(self, ref_dics, parameters0=None, steps=50):
         """
-        Approximate the offset energy between FF and Reference evaluators
+        Approximate the offset energy between FF and Reference
         mean(engs_ref-engs_ff)
 
         Args:
@@ -1230,7 +1225,10 @@ class ForceFieldParameters:
         else:
             assert(len(parameters0) == len(self.params_init))
 
-        results = self.evaluate_multi_references(ref_dics, parameters0, max_E=1000, max_dE=1000)
+        results = self.evaluate_multi_references(ref_dics,
+                                                 parameters0,
+                                                 max_E=1000,
+                                                 max_dE=1000)
         (ff_values, ref_values, _, _) = results
         (ff_eng, _, _) = ff_values
         (ref_eng, _, _) = ref_values
@@ -1239,8 +1237,6 @@ class ForceFieldParameters:
         if abs(x) < 1e-5:
             x = np.mean(ref_eng - ff_eng)
             print("Initial guess of offset", x)
-            #print("ref_eng", ref_eng)
-            #print("ff_eng", ff_eng)
 
         def obj_fun(x, ff_eng, ref_eng):
             return -compute_r2(ff_eng + x, ref_eng)
@@ -1531,8 +1527,9 @@ class ForceFieldParameters:
 
         if self.ncpu == 1:
             for i, ref_dic in enumerate(ref_dics):
-                structure, options, numMols = ref_dic['structure'], ref_dic['options'], ref_dic['numMols']
-                #print(lmp_strucs[i].box)
+                structure = ref_dic['structure']
+                options = ref_dic['options']
+                numMols = ref_dic['numMols']
                 structure = reset_lammps_cell(structure)
                 box = structure.cell.cellpar()
                 coordinates = structure.get_positions()

@@ -20,16 +20,18 @@ class forcefield:
         - 2. generate the structures with multiple molecules and force fields
     """
 
-    def __init__(self, smiles=None, style="gaff", chargemethod="am1bcc"):
+    def __init__(self, smiles, style="gaff", chargemethod="am1bcc", workdir="."):
         """
         Args:
             smiles (list): molecular smiles
             style (str): 'gaff' or 'openff'
             chargemethod (str): 'mmff94', 'am1bcc', 'am1-mulliken', 'gasteiger'
+            workdir (str): '.'
         """
         self.dics = []
         self.smiles = smiles
         self.chargemethod = chargemethod
+        self.workdir = workdir
         self.set_partial_charges()
 
         # setup converter
@@ -40,6 +42,7 @@ class forcefield:
             residuename = "U{:02d}".format(i)
             ffdic = converter(smi, chargemethod).ffdic
             # print(ffdic, ffdic.keys())
+
             # Pass the partial charge
             molecule = ommffs_to_paramedstruc(
                 ffdic["omm_forcefield"], ffdic["mol2"], cls=ParmEdStructure
@@ -65,7 +68,6 @@ class forcefield:
             if smi in single_smiles:
                 pattern = r'([A-Za-z]+)([+\-]?\d*)'
                 matches = re.search(pattern, smi)
-                #print(smi, matches)
                 if matches:
                     charge_str = matches.group(2)
                     if charge_str == '+':
@@ -140,7 +142,7 @@ class forcefield:
         atoms.set_pbc(pbc)
         atoms.title = '.'.join(self.smiles)
 
-        return atoms._write_input(lmp_dat)
+        return atoms._write_input(self.workdir + '/' + lmp_dat)
 
     def reset_lammps_cell(self, atoms0):
         """
