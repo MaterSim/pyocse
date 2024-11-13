@@ -147,7 +147,7 @@ def get_lmp_efs(lmp_struc, lmp_in, lmp_dat):
     return calc.express_evaluation()
 
 def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only,
-        natoms_per_unit, f_coef, s_coef, dir_name, obj):
+        natoms_per_unit, e_coef, f_coef, s_coef, dir_name, obj):
     """
     parallel version
     """
@@ -166,7 +166,7 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only,
                                  lmp_dat,
                                  lmp_in,
                                  natoms_per_unit)
-        result = obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef, obj)
+        result = obj_from_efs(efs, ref_dic, e_offset, E_only, e_coef, f_coef, s_coef, obj)
         if obj == 'MSE':
             total_mse += result
         else:
@@ -188,7 +188,7 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only,
         return (eng_arr, force_arr, stress_arr)
 
 def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
-        natoms_per_unit, f_coef, s_coef, dir_name, max_dE=1.25, max_E=1000.0):
+        natoms_per_unit, e_coef, f_coef, s_coef, dir_name, max_dE=1.25, max_E=1000.0):
     """
     parallel version
     """
@@ -232,7 +232,7 @@ def evaluate_structure(structure, lmp_struc, lmp_dat, lmp_in, natoms_per_unit):
     lmp_struc.coordinates = structure.get_positions()
     return get_lmp_efs(lmp_struc, lmp_in, lmp_dat)
 
-def obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef, obj):
+def obj_from_efs(efs, ref_dic, e_offset, E_only, e_coef, f_coef, s_coef, obj):
     """
     Compute the objective from a single ff_dic.
     If obj is MSE, return mse value
@@ -245,7 +245,7 @@ def obj_from_efs(efs, ref_dic, e_offset, E_only, f_coef, s_coef, obj):
     if ref_dic['options'][0]:
         e1 = eng / ref_dic['replicate'] + e_offset
         e2 = ref_dic['energy'] / ref_dic['replicate']
-        mse += (e1-e2) ** 2
+        mse += e_coef * (e1-e2) ** 2
         eng_arr = [e1, e2]
 
     if not E_only:
@@ -460,6 +460,7 @@ class ForceFieldParameters:
                  chargemethod = 'am1bcc',
                  ff_evaluator = 'lammps',
                  ref_evaluator = None, #'mace',
+                 e_coef = 1.0,
                  f_coef = 0.1,
                  s_coef = 1.0,
                  ncpu = 1,
@@ -474,6 +475,7 @@ class ForceFieldParameters:
             chargemethod (str): 'mmff94', 'am1bcc', 'am1-mulliken', 'gasteiger'
             ff_evaluator (str): 'lammps' or 'charmm'
             ref_evaluator (str): None or 'mace' or 'trochani'
+            e_coef (float): coefficients for energy
             f_coef (float): coefficients for forces
             s_coef (float): coefficients for stress
         """
@@ -509,6 +511,7 @@ class ForceFieldParameters:
             # set up the lammps template
             self.ase_templates = {}
             self.lmp_dat = {}
+        self.e_coef = e_coef
         self.f_coef = f_coef
         self.s_coef = s_coef
         self.terms = ['bond', 'angle', 'proper', 'vdW', 'charge', 'offset']
@@ -755,6 +758,7 @@ class ForceFieldParameters:
         if self.ref_evaluator is not None:
             s += "Ref_code:   {:s}\n".format(self.ref_evaluator)
         s += "N_CPU:       {:3d}\n".format(self.ncpu)
+        s += "E_coef:      {:.3f}\n".format(self.e_coef)
         s += "F_coef:      {:.3f}\n".format(self.f_coef)
         s += "S_coef:      {:.3f}\n".format(self.s_coef)
         return s
@@ -932,6 +936,7 @@ class ForceFieldParameters:
                                    ref_dic,
                                    e_offset,
                                    E_only,
+                                   self.e_coef,
                                    self.f_coef,
                                    self.s_coef,
                                    obj,
@@ -963,6 +968,7 @@ class ForceFieldParameters:
                                   e_offset,
                                   E_only,
                                   self.natoms_per_unit,
+                                  self.e_coef,
                                   self.f_coef,
                                   self.s_coef,
                                   folder,
@@ -987,7 +993,7 @@ class ForceFieldParameters:
 
         if obj == 'R2':
             #print(eng_arr[0])
-            total_obj -= compute_r2(eng_arr[0], eng_arr[1])
+            total_obj -= self.e_coef * compute_r2(eng_arr[0], eng_arr[1])
             total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
             total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
             #print('BBBBBBBBBBBb', self.f_coef, compute_r2(force_arr[0], force_arr[1]))
@@ -1571,6 +1577,7 @@ class ForceFieldParameters:
                                   lmp_in,
                                   offset_opt,
                                   self.natoms_per_unit,
+                                  self.e_coef,
                                   self.f_coef,
                                   self.s_coef,
                                   folder,
