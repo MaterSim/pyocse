@@ -704,6 +704,7 @@ class ForceFieldParameters:
         """
         if parameters0 is None: parameters0 = self.params_init
         parameters = parameters0.copy()
+        assert(len(sub_parameters) == len(terms))
         for sub_para, term in zip(sub_parameters, terms):
             if term == 'bond':
                 id1 = 0
@@ -796,7 +797,7 @@ class ForceFieldParameters:
                                   logfile,
                                   fmax)
 
-    #@timeit
+    @timeit
     def evaluate_ref_single(self, structure, numMols=[1],
                             options=[True, True, True], relax=False):
         """
@@ -906,7 +907,7 @@ class ForceFieldParameters:
         return True
 
 
-    #@timeit
+    @timeit
     def get_objective(self, ref_dics, e_offset, E_only=False, lmp_in=None, obj='MSE'):
         """
         Compute the objective mismatch for the give ref_dics
@@ -928,10 +929,20 @@ class ForceFieldParameters:
             for i, ref_dic in enumerate(ref_dics):
                 options = ref_dic['options']
                 numMol = ref_dic['numMols']
-                ff_dic = self.evaluate_ff_single(lmp_strucs[i], numMol, options,
-                                                 lmp_dats[i], lmp_in,
+                structure = ref_dic['structure']
+                structure = reset_lammps_cell(structure)
+                box = structure.cell.cellpar()
+                coordinates = structure.get_positions()
+                ff_dic = self.evaluate_ff_single(lmp_strucs[i], 
+                                                 numMol, 
+                                                 options,
+                                                 lmp_dats[i], 
+                                                 lmp_in,
+                                                 box,
+                                                 coordinates,
                                                  )
                 efs = (ff_dic['energy'], ff_dic['forces'], ff_dic['stress'])
+                #print('debug evaluate_ff_single', ff_dic['energy'])
                 res = obj_from_efs(efs,
                                    ref_dic,
                                    e_offset,
@@ -950,7 +961,7 @@ class ForceFieldParameters:
                     force_arr[0].extend(f1)
                     force_arr[1].extend(f2)
                     stress_arr[0].extend(s1)
-                    stress_arr[1].extend(s1)
+                    stress_arr[1].extend(s2)
         else:
             #parallel process
             N_cycle = int(np.ceil(len(ref_dics)/self.ncpu))
@@ -993,10 +1004,19 @@ class ForceFieldParameters:
 
         if obj == 'R2':
             #print(eng_arr[0])
+            #eng_arr[0] = np.array(eng_arr[0])
+            #eng_arr[1] = np.array(eng_arr[1])
+            #force_arr[0] = np.array(force_arr[0])
+            #force_arr[1] = np.array(force_arr[1])
+            #stress_arr[0] = np.array(stress_arr[0])
+            #stress_arr[1] = np.array(stress_arr[1])
             total_obj -= self.e_coef * compute_r2(eng_arr[0], eng_arr[1])
             total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
             total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
-            #print('BBBBBBBBBBBb', self.f_coef, compute_r2(force_arr[0], force_arr[1]))
+            #print(eng_arr[0], eng_arr[1])
+            #print('BBBBBBBBEng   ', np.sum((eng_arr[0] - eng_arr[1]) ** 2))
+            #print('BBBBBBBBForce ', np.sum((force_arr[0] - force_arr[1])**2))
+            #print('BBBBBBBBStre  ', np.sum((stress_arr[0] - stress_arr[1]) **2))
 
         return total_obj
 
@@ -1257,7 +1277,7 @@ class ForceFieldParameters:
 
         parameters0[-1] += res.x[0]
         print("optimized offset", parameters0[-1])#; import sys; sys.exit()
-        return res.x[0], parameters0
+        return parameters0[-1], parameters0
 
 
     def load_parameters(self, filename):
@@ -1867,7 +1887,9 @@ class ForceFieldParameters:
         (ref_eng, ref_force, ref_stress) = ref_values
         (mse_eng, mse_for, mse_str) = rmse_values
         (r2_eng, r2_for, r2_str) = r2_values
-        print(r2_values)
+        #print("r2 values", r2_values)
+        #print("ref_eng_values", ref_eng)
+        #print("ff_eng_values", ff_eng)
 
         label1 = '{:s}. Energy ({:d})\n'.format(label, len(ff_eng))
         label1 += 'Unit: [eV/mole]\n'
