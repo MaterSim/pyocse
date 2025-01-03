@@ -453,7 +453,6 @@ for molecular simulation.
 """
 class ForceFieldParameters:
 
-
     def __init__(self,
                  smiles = ['CC(=O)OC1=CC=CC=C1C(=O)O'],
                  style = 'gaff',
@@ -464,6 +463,7 @@ class ForceFieldParameters:
                  f_coef = 0.1,
                  s_coef = 1.0,
                  ncpu = 1,
+                 ff = None,
                  verbose = True,
                  device = 'cpu'):
         """
@@ -481,7 +481,10 @@ class ForceFieldParameters:
         """
         self.smiles = smiles
         self.ff_style = style
-        self.ff = forcefield(smiles, style, chargemethod)
+        if ff is not None:
+            self.ff = ff
+        else:
+            self.ff = forcefield(smiles, style, chargemethod)
         # only works for 1:1 ratio cocrystal for now
         self.natoms_per_unit = sum([len(mol.atoms) for mol in self.ff.molecules])
         params_init, constraints, bounds = self.get_default_ff_parameters()
@@ -797,7 +800,7 @@ class ForceFieldParameters:
                                   logfile,
                                   fmax)
 
-    @timeit
+    #@timeit
     def evaluate_ref_single(self, structure, numMols=[1],
                             options=[True, True, True], relax=False):
         """
@@ -907,8 +910,8 @@ class ForceFieldParameters:
         return True
 
 
-    @timeit
-    def get_objective(self, ref_dics, e_offset, E_only=False, lmp_in=None, obj='MSE'):
+    #@timeit
+    def get_objective(self, ref_dics, e_offset, E_only=False, lmp_in=None, obj='MSE', path='.'):
         """
         Compute the objective mismatch for the give ref_dics
         Todo, Enable the parallel option
@@ -920,6 +923,10 @@ class ForceFieldParameters:
             lmp_in:
             obj:
         """
+        # Set path for this evaluation
+        pwd = os.getcwd()
+        os.makedirs(path, exist_ok=True)
+        os.chdir(path)
 
         total_obj = 0
         eng_arr, force_arr, stress_arr = [[], []], [[], []], [[], []]
@@ -1018,6 +1025,7 @@ class ForceFieldParameters:
             #print('BBBBBBBBForce ', np.sum((force_arr[0] - force_arr[1])**2))
             #print('BBBBBBBBStre  ', np.sum((stress_arr[0] - stress_arr[1]) **2))
 
+        os.chdir(pwd)
         return total_obj
 
 
