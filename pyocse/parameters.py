@@ -8,6 +8,8 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 from scipy.optimize import minimize
 from math import ceil
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 
 from ase import Atoms
@@ -484,6 +486,7 @@ class ForceFieldParameters:
         if ff is not None:
             self.ff = ff
         else:
+            print("Initializing ForceField")
             self.ff = forcefield(smiles, style, chargemethod)
         # only works for 1:1 ratio cocrystal for now
         self.natoms_per_unit = sum([len(mol.atoms) for mol in self.ff.molecules])
@@ -1008,24 +1011,13 @@ class ForceFieldParameters:
                         force_arr[1].extend(forces[1])
                         stress_arr[0].extend(stresses[0])
                         stress_arr[1].extend(stresses[1])
+        os.chdir(pwd)
 
         if obj == 'R2':
-            #print(eng_arr[0])
-            #eng_arr[0] = np.array(eng_arr[0])
-            #eng_arr[1] = np.array(eng_arr[1])
-            #force_arr[0] = np.array(force_arr[0])
-            #force_arr[1] = np.array(force_arr[1])
-            #stress_arr[0] = np.array(stress_arr[0])
-            #stress_arr[1] = np.array(stress_arr[1])
             total_obj -= self.e_coef * compute_r2(eng_arr[0], eng_arr[1])
             total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
             total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
-            #print(eng_arr[0], eng_arr[1])
-            #print('BBBBBBBBEng   ', np.sum((eng_arr[0] - eng_arr[1]) ** 2))
-            #print('BBBBBBBBForce ', np.sum((force_arr[0] - force_arr[1])**2))
-            #print('BBBBBBBBStre  ', np.sum((stress_arr[0] - stress_arr[1]) **2))
 
-        os.chdir(pwd)
         return total_obj
 
 
@@ -1840,6 +1832,7 @@ class ForceFieldParameters:
                 self._plot_ff_parameters(ax2, params, term=term+'-2')
         plt.title('.'.join(self.smiles))
         plt.savefig(figname)
+        plt.close('all')
 
     def plot_ff_results(self, figname, ref_dics, params, labels=None,
             max_E=1000, max_dE=1000):
@@ -1861,6 +1854,7 @@ class ForceFieldParameters:
             fig, axes = plt.subplots(1, 3, figsize=(16, 5))
             _, err_dic = self._plot_ff_results(axes, params[0], ref_dics, labels, max_E, max_dE)
             plt.savefig(figname)
+            plt.close('all')
             return [err_dic]
         else:
             if labels is None: labels = ['FF'+str(i) for i in range(len(params))]
@@ -1870,6 +1864,7 @@ class ForceFieldParameters:
                 _, err_dic = self._plot_ff_results(axes[i], param, ref_dics, labels[i], max_E, max_dE)
                 err_dics.append(err_dic)
             plt.savefig(figname)
+            plt.close('all')
             return err_dics
 
 
