@@ -595,7 +595,8 @@ class LAMMPSCalculator(LAMMPSCalculatorMixIn):
         self.struc = struc
         self.base = base
         self.workdir = workdir,
-        cmdargs = ["-screen", "none", "-log", f"{workdir}/{base}.log", "-nocite"]
+        #cmdargs = ["-screen", "none", "-log", f"{workdir}/{base}.log", "-nocite"]
+        cmdargs = ["-screen", "none", "-log", "none", "-nocite"]
         self.lin = f"{workdir}/{base}.in"
         self.ldat = f"{workdir}/{base}.dat"
         self.dumpdir = dumpdir
