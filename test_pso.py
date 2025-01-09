@@ -10,22 +10,21 @@ from multiprocessing import set_start_method
 set_start_method('spawn', force=True)
 
 # Global shared arguments for all workers
-def worker_init(shared_params, shared_para0, shared_terms, shared_ref_dics, shared_e_offset):
-    global params, para0, terms, ref_dics, e_offset, obj
+def worker_init(shared_params, shared_para0, shared_terms, shared_ref_dics):
+    global params, para0, terms, ref_dics
     params = shared_params
     para0 = shared_para0
     terms = shared_terms
     ref_dics = shared_ref_dics
-    e_offset = shared_e_offset
 
 def worker(para_values):
     #t0 = time()
     path = mp.current_process().name
-    score = obj_function(para_values, params, para0, terms, ref_dics, e_offset, path)
+    score = obj_function(para_values, params, para0, terms, ref_dics, path)
     #print(f"Worker {mp.current_process().pid} finished in {time()-t0:.2f} s")
     return score
 
-def obj_function_par(para_values_list, params, para0, terms, ref_dics, e_offset, ncpu):
+def obj_function_par(para_values_list, params, para0, terms, ref_dics, ncpu):
     """
     Parallel evaluation of objective function for multiple sets of parameters.
 
@@ -35,7 +34,6 @@ def obj_function_par(para_values_list, params, para0, terms, ref_dics, e_offset,
         para0: Base parameters.
         terms: List of force field terms.
         ref_dics: Reference dataset dictionary.
-        e_offset: Energy offset.
         num_workers: Number of parallel processes.
 
     Returns:
@@ -46,7 +44,7 @@ def obj_function_par(para_values_list, params, para0, terms, ref_dics, e_offset,
     if ncpu == 1:
         scores = []
         for i, para_value in enumerate(para_values_list):
-            score = obj_function(para_value, params, para0, terms, ref_dics, e_offset, '.')
+            score = obj_function(para_value, params, para0, terms, ref_dics, '.')
             scores.append(score)
         print(f"Time for serial computation: {time()-t0:.4f}")
         return scores
@@ -57,7 +55,7 @@ def obj_function_par(para_values_list, params, para0, terms, ref_dics, e_offset,
         obj_function_par.pool = mp.Pool(
             processes=ncpu,
             initializer=worker_init,
-            initargs=(params, para0, terms, ref_dics, e_offset)
+            initargs=(params, para0, terms, ref_dics)
         )
         print(f"Pool initialized, {time()-t0}")
 
@@ -66,7 +64,7 @@ def obj_function_par(para_values_list, params, para0, terms, ref_dics, e_offset,
 
     return results
 
-def obj_function(para_values, params, para0, terms, ref_dics, e_offset, path, obj='R2'):
+def obj_function(para_values, params, para0, terms, ref_dics, path, obj='R2'):
     """
     Objective function for PSOGAOptimizer.
 
@@ -76,22 +74,22 @@ def obj_function(para_values, params, para0, terms, ref_dics, e_offset, path, ob
         para0: Array of all FF parameter as the base
         terms: list of FF terms to optimize
         ref_dics: dictionary of dataset
-        e_offset: offset value
 
     Returns:
         Objective score.
     """
 
     # Split 1D array of para_values to a list grouped by each term
-    sub_values = []
-    count = 0
-    for term in terms:
-        N = getattr(params, 'N_'+term)
-        sub_values.append(para_values[count:count+N])
-        count += N
+    #sub_values = []
+    #count = 0
+    #for term in terms:
+    #    N = getattr(params, 'N_'+term)
+    #    sub_values.append(para_values[count:count+N])
+    #    count += N
 
     #print("debug subvals", sub_values[0][:5], para0[:5])
-    updated_params = params.set_sub_parameters(sub_values, terms, para0)
+    #updated_params = params.set_sub_parameters(sub_values, terms, para0)
+    updated_params = params.set_sub_parameters(para_values, terms, para0)
 
     # Update the parameters in the force field with the base parameter
     params.update_ff_parameters(updated_params)
@@ -102,7 +100,7 @@ def obj_function(para_values, params, para0, terms, ref_dics, e_offset, path, ob
     # Calculate the objective (e.g., MSE)
     objective_score = params.get_objective(
         ref_dics=ref_dics,
-        e_offset=e_offset,
+        e_offset=para0[-1],
         lmp_in=lmp_in,
         obj=obj,
         path=path,
@@ -141,7 +139,7 @@ if __name__ == "__main__":
     )
     
     p0, errors = params.load_parameters(args.params)
-    ref_dics = params.load_references(args.ref)[:500]
+    ref_dics = params.load_references(args.ref)[:1000]
     
     os.makedirs(args.dir, exist_ok=True)
     os.chdir(args.dir)
@@ -149,7 +147,7 @@ if __name__ == "__main__":
     t0 = time()
     e_offset, params_opt = params.optimize_offset(ref_dics, p0)
     params.update_ff_parameters(params_opt)
-    errs = params.plot_ff_results("performance_opt_pso_0.png", ref_dics, [params_opt])
+    errs = params.plot_ff_results("performance_init.png", ref_dics, [params_opt])
     print("MSE objective", params.get_objective(ref_dics, e_offset, obj="MSE"))
     print("R2 objective", params.get_objective(ref_dics, e_offset, obj="R2"))
     
@@ -160,16 +158,13 @@ if __name__ == "__main__":
     vals = np.concatenate(sub_vals)
     bounds = np.concatenate(sub_bounds)
 
-    # precompute the lmp_strucs/dats
-    #params.get_lmp_inputs_from_ref_dics(ref_dics)
-    
     # PSO-GA optimization
     optimizer = PSO(
             obj_function=obj_function_par,
-            obj_args=(params, params_opt, terms, ref_dics, e_offset),
+            obj_args=(params, params_opt, terms, ref_dics),
             bounds=bounds,
             seed=vals.reshape((1, len(vals))),
-            num_particles=100, 
+            num_particles=96, 
             dimensions=len(bounds),
             inertia=0.5,
             cognitive=0.2,
@@ -182,17 +177,7 @@ if __name__ == "__main__":
     
     best_position, best_score = optimizer.optimize()
     
-    # Update `params_opt` with the optimized values
-    # Split 1D array of para_values to a list grouped by each term
-    # Todo: move this to a function method in ForceFieldParameters
-    sub_values = []
-    count = 0
-    for term in terms:
-        N = getattr(params, 'N_'+term)
-        sub_values.append(best_position[count: count+N])
-        count += N
-    
-    params_opt = params.set_sub_parameters(sub_values, terms, params_opt)
+    params_opt = params.set_sub_parameters(best_position, terms, params_opt)
     e_offset, params_opt = params.optimize_offset(ref_dics, params_opt)
     params.update_ff_parameters(params_opt)
     print("e_offset", e_offset)
@@ -202,6 +187,6 @@ if __name__ == "__main__":
     print(f"Best Score: {best_score:.4f}")
     
     # Final evaluation and saving results
-    errs = params.plot_ff_results("performance_opt_pso_1.png", ref_dics, [params_opt])
+    errs = params.plot_ff_results("performance_opt_pso.png", ref_dics, [params_opt])
     params.export_parameters("parameters_opt_pso.xml", params_opt, errs[0])
     print("Optimization completed successfully.")

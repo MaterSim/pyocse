@@ -1090,28 +1090,6 @@ class ForceFieldParametersBase:
             folder = f"cpu0{i}"
         return folder
 
-    def evaluate_single_reference(self, ref_dic, parameters):
-
-        f_mse, f_r2, s_mse, s_r2 = 0, 0, 0, 0
-        self.update_ff_parameters(parameters)
-        offset_opt = parameters[-1]
-        structure, options = ref_dic['structure'], ref_dic['options']
-
-        ff_dic = self.evaluate_ff_single(structure, ref_dic['numMols'], options, None)
-        e_diff = ff_dic['energy']/ff_dic['replicate'] + offset_opt - ref_dic['energy']/ff_dic['replicate']
-        print(ff_dic['energy'], ref_dic['energy'])
-        if options[1]:
-            f1 = ff_dic['forces'].flatten()
-            f2 = ref_dic['forces'].flatten()
-            f_mse = np.sum((f1-f2)**2)/len(f1)
-            f_r2 = compute_r2(f1, f2)
-        if options[2]:
-            s1 = ff_dic['stress'].flatten()
-            s2 = ref_dic['stress'].flatten()
-            f_mse = np.sum((s1-s2)**2)/len(s1)
-            f_r2 = compute_r2(s1, s2)
-        return e_diff, f_mse, f_r2, s_mse, s_r2
-
 
     def evaluate_multi_references(self, ref_dics, parameters, max_E, max_dE):
         """
@@ -1222,7 +1200,6 @@ class ForceFieldParametersBase:
         r2_values = (r2_eng, r2_for, r2_str)
 
         return ff_values, ref_values, rmse_values, r2_values
-
 
 
     def _plot_ff_parameters(self, ax, params, term='bond-1', width=0.35):
@@ -1468,6 +1445,29 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
     def __repr__(self):
         return str(self)
+
+    def evaluate_single_reference(self, ref_dic, parameters):
+
+        f_mse, f_r2, s_mse, s_r2 = 0, 0, 0, 0
+        self.update_ff_parameters(parameters)
+        offset_opt = parameters[-1]
+        structure, options = ref_dic['structure'], ref_dic['options']
+
+        ff_dic = self.evaluate_ff_single(structure, ref_dic['numMols'], options, None)
+        e_diff = ff_dic['energy']/ff_dic['replicate'] + offset_opt - ref_dic['energy']/ff_dic['replicate']
+        print(ff_dic['energy'], ref_dic['energy'])
+        if options[1]:
+            f1 = ff_dic['forces'].flatten()
+            f2 = ref_dic['forces'].flatten()
+            f_mse = np.sum((f1-f2)**2)/len(f1)
+            f_r2 = compute_r2(f1, f2)
+        if options[2]:
+            s1 = ff_dic['stress'].flatten()
+            s2 = ref_dic['stress'].flatten()
+            f_mse = np.sum((s1-s2)**2)/len(s1)
+            f_r2 = compute_r2(s1, s2)
+        return e_diff, f_mse, f_r2, s_mse, s_r2
+
 
     def augment_reference(self, ref_structure, numMols, fmax=0.1,
                           steps=250, N_vibs=10, logfile='-'):
