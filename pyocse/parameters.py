@@ -502,6 +502,28 @@ class ForceFieldParametersBase:
         self.ncpu = ncpu
         self.verbose = verbose
 
+    def __str__(self):
+        s = "\n------Force Field Parameters------\n"
+        s += "Bond:        {:3d}\n".format(self.N_bond)
+        s += "Angle:       {:3d}\n".format(self.N_angle)
+        s += "Proper:      {:3d}\n".format(self.N_proper)
+        s += "Improper:    {:3d}\n".format(self.N_improper)
+        s += "vdW:         {:3d}\n".format(self.N_vdW)
+        s += "Charges:     {:3d}\n".format(self.N_charges)
+        s += "Total:       {:3d}\n".format(len(self.params_init))
+        s += "Constraints: {:3d}\n".format(len(self.constraints))
+        s += "FF_code:    {:s}\n".format(self.ff_evaluator)
+        if hasattr(self, 'ref_evaluator'):
+            s += "Ref_code:   {:s}\n".format(self.ref_evaluator)
+        s += "N_CPU:       {:3d}\n".format(self.ncpu)
+        s += "E_coef:      {:.3f}\n".format(self.e_coef)
+        s += "F_coef:      {:.3f}\n".format(self.f_coef)
+        s += "S_coef:      {:.3f}\n".format(self.s_coef)
+        return s
+
+    def __repr__(self):
+        return str(self)
+    
     def get_default_ff_parameters(self, coefs=[0.5, 1.5], deltas=[-0.2, 0.2]):
         """
         Get the initial FF parameters/bounds/constraints
@@ -750,6 +772,36 @@ class ForceFieldParametersBase:
                 self.ase_templates[replicate] = lmp_struc
         return lmp_struc, lmp_dat
 
+    def write_lmp_dat_from_ref_dics(self, ref_dics, DIR='structures'):
+        """
+        Write lmp.dat for all structures from the ref_dics
+
+        Args:
+            ref_dics: list of dictionaries
+            DIR: directory to write the lmp.dat files
+        """
+        os.makedirs(DIR, exist_ok=True)
+        for i, ref_dic in enumerate(ref_dics):
+            numMols = ref_dic['numMols']
+            #structure = ref_dic['structure']
+            structure = Atoms(numbers = ref_dic['numbers'],
+                              positions = ref_dic['position'],
+                              cell = ref_dic['lattice'],
+                              pbc = [1, 1, 1])
+            lmp_struc = self.ff.get_ase_lammps(structure, numMols)
+            lmp_struc.box = structure.cell.cellpar()
+            #print(i, lmp_struc.box[:3], lmp_struc.fftgrid())
+            lmp_struc.coordinates = structure.positions
+            dat_head = lmp_struc._write_dat_head()
+            dat_box = lmp_struc._write_dat_box()
+            dat_atoms = lmp_struc._write_dat_atoms()
+            dat_connect, _, _, _ = lmp_struc._write_dat_connects()
+            with open(DIR+"/lmp_dat_"+str(i+1), "w") as f:
+                f.write(dat_head)
+                f.write(dat_box)
+                f.write(dat_atoms)
+                f.write(dat_connect)
+
     #@timeit
     def evaluate_ff_single(self, lmp_struc, numMols=[1], options=[True]*3,
                            lmp_dat=None,
@@ -906,6 +958,7 @@ class ForceFieldParametersBase:
         os.chdir(pwd)
 
         if obj == 'R2':
+            np.savetxt('3.txt', eng_arr[0]); np.savetxt('4.txt', eng_arr[1])
             total_obj -= self.e_coef * compute_r2(eng_arr[0], eng_arr[1])
             total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
             total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
@@ -1080,6 +1133,60 @@ class ForceFieldParametersBase:
             raise ValueError("Unsupported file format")
 
         return ref_dics
+
+    def get_reference_data_and_mask(self, ref_dics):
+        """
+        Get the reference data and mask for the objective function
+        """
+
+        eng_arr = []
+        force_arr = []
+        stress_arr = []
+        number_arr = []
+        mask_eng = []
+        mask_force = []
+        mask_stress = []
+
+        for ref_dic in ref_dics:
+            eng = ref_dic['energy']
+            if ref_dic['forces'] is None:
+                force = [0] * 3 * len(ref_dic['numbers'])
+            else:
+                force = ref_dic['forces'].flatten()
+            if ref_dic['stress'] is None:
+                stress = [0] * 6
+            else:
+                stress = ref_dic['stress'].flatten()
+            replicate = ref_dic['replicate']
+            eng_arr.append(eng)
+            number_arr.append(replicate)
+            force_arr.extend(force)
+            stress_arr.extend(stress)
+            N_force = len(force)
+            
+            if ref_dic['options'][0]: 
+                mask_eng.append(True)
+            else:
+                mask_eng.append(False)
+
+            if ref_dic['options'][1]: 
+                mask_force.extend([True] * N_force)
+            else:
+                mask_force.extend([False] * N_force)
+
+            if ref_dic['options'][2]: 
+                mask_stress.extend([True] * 6)
+            else:
+                mask_stress.extend([False] * 6)
+
+        eng_arr = np.array(eng_arr)
+        force_arr = np.array(force_arr)
+        stress_arr = np.array(stress_arr)
+        number_arr = np.array(number_arr)
+        mask_eng = np.array(mask_eng)
+        mask_force = np.array(mask_force)
+        mask_stress = np.array(mask_stress)
+        return eng_arr, force_arr, stress_arr, number_arr, mask_eng, mask_force, mask_stress
 
     def get_label(self, i):
         if i < 10:
@@ -1424,27 +1531,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                     parameters[id] += diff/(id2-id1)
         return parameters
 
-    def __str__(self):
-        s = "\n------Force Field Parameters------\n"
-        s += "Bond:        {:3d}\n".format(self.N_bond)
-        s += "Angle:       {:3d}\n".format(self.N_angle)
-        s += "Proper:      {:3d}\n".format(self.N_proper)
-        s += "Improper:    {:3d}\n".format(self.N_improper)
-        s += "vdW:         {:3d}\n".format(self.N_vdW)
-        s += "Charges:     {:3d}\n".format(self.N_charges)
-        s += "Total:       {:3d}\n".format(len(self.params_init))
-        s += "Constraints: {:3d}\n".format(len(self.constraints))
-        s += "FF_code:    {:s}\n".format(self.ff_evaluator)
-        if hasattr(self, 'ref_evaluator'):
-            s += "Ref_code:   {:s}\n".format(self.ref_evaluator)
-        s += "N_CPU:       {:3d}\n".format(self.ncpu)
-        s += "E_coef:      {:.3f}\n".format(self.e_coef)
-        s += "F_coef:      {:.3f}\n".format(self.f_coef)
-        s += "S_coef:      {:.3f}\n".format(self.s_coef)
-        return s
 
-    def __repr__(self):
-        return str(self)
 
     def evaluate_single_reference(self, ref_dic, parameters):
 
@@ -2064,10 +2151,6 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
         print("Removed {:d} entries by error".format(len(ref_dics)-len(_ref_dics)))
         return _ref_dics
-
-
-
-
 
 if __name__ == "__main__":
     from pyxtal.db import database
