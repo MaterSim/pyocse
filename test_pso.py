@@ -4,8 +4,49 @@ from time import time
 import os
 import numpy as np
 from ase import units 
-
+from lammps import PyLammps
 import numpy as np
+
+def execute_lammps(lmp_in, N_strucs):
+    """
+    Args:
+        lmp_in (str): path of lmp_in
+        N_strucs (int): Number of structures
+    """
+    cmdargs = ["-screen", "none", "-log", "none", "-nocite"]
+    lmp = PyLammps(cmdargs = cmdargs)
+    engs = []
+    for id in range(N_strucs):
+        lmp.command(f"variable index equal {id+1}")
+        lmp.file(lmp_in)
+        lmp.run(0)
+        thermo = lmp.last_run[-1]
+        energy = float(thermo.TotEng[-1]) * units.kcal/units.mol
+        stress = np.zeros(6)
+        # traditional Voigt order (xx, yy, zz, yz, xz, xy)
+        stress_vars = ['pxx', 'pyy', 'pzz', 'pyz', 'pxz', 'pxy']
+        for i, var in enumerate(stress_vars):
+            stress[i] = lmp.variables[var].value
+            
+        fx = np.frombuffer(lmp.variables['fx'].value)
+        fy = np.frombuffer(lmp.variables['fy'].value)
+        fz = np.frombuffer(lmp.variables['fz'].value)
+        
+        stress = -stress * 101325 * units.Pascal
+        force = np.vstack((fx, fy, fz)).T.flatten() * units.kcal/units.mol
+        engs.append(energy)
+        if id > 0:
+            stresses = np.append(stresses, stress)
+            forces = np.append(forces, force)
+        else:
+            stresses = stress
+            forces = force
+        #print(id, len(force), len(forces))
+    lmp.close()
+
+    engs = np.array(engs)
+    return engs, forces, stresses
+
 
 def r2_score(y_true, y_pred):
     tss = np.sum((y_true - np.mean(y_true))**2)
@@ -31,7 +72,7 @@ def get_force_arr(input_file):
     return forces.flatten()
 
 def obj_function_par(para_values, template, ref_data, e_offset, ncpu):
-    print(len(para_values))
+    #print(len(para_values))
     scores = []
     if ncpu == 1:
         for i, para_value in enumerate(para_values):
@@ -53,9 +94,7 @@ def obj_function(para_value, template, ref_data, e_offset, path='lmp.in', obj='R
     Returns:
         Objective score.
     """
-    strs = f"variable index loop {len(ref_data[0])}\n"
-    strs += """
-label loop_start
+    strs = """
 clear 
 
 units real
@@ -104,7 +143,7 @@ mass 18   1.0079470 #U00H18
 mass 19   1.0079470 #U00H19
 mass 20   1.0079470 #U00H20
 mass 21   1.0079470 #U00H21
-    """
+"""
 
     for key in template.keys():
         items = template[key]
@@ -146,42 +185,42 @@ variable pzz equal pzz
 variable pyz equal pyz
 variable pxz equal pxz
 variable pxy equal pxy
-variable energy equal etotal
-# Perform single point energy calculation
+variable fx atom fx
+variable fy atom fy
+variable fz atom fz
+"""   
+
+## Write energy to energy.txt 
+## Write forces to forces.txt
+## Write stress to stress.txt
+#
+#compute myForces all property/atom fx fy fz
+#dump forcesDump all custom 1 forces.txt id type fx fy fz
+#dump_modify forcesDump append yes
 #run 0
-
-# Write energy to energy.txt 
-# Write forces to forces.txt
-# Write stress to stress.txt
-
-compute myForces all property/atom fx fy fz
-dump forcesDump all custom 1 forces.txt id type fx fy fz
-dump_modify forcesDump append yes
-run 0
-undump forcesDump
-print "${pxx} ${pyy} ${pzz} ${pyz} ${pxz} ${pxy}" append stress.txt
-print "${energy}" append eng.txt
-
-# Iterate to the next structure
-next index
-jump SELF loop_start
-    """   
+#undump forcesDump
+#print "${pxx} ${pyy} ${pzz} ${pyz} ${pxz} ${pxy}" append stress.txt
+#print "${energy}" append eng.txt
+#
+## Iterate to the next structure
+#next index
+#jump SELF loop_start
     e_coef = 1
     f_coef = 1
     s_coef = 1
-
-    with open(path, 'w') as f:
-        f.write(strs)
-
-    # Run LAMMPS
-    os.system("rm -f eng.txt stress.txt forces.txt")
-    os.system("lmp -in lmp.in > lmp.out")
-
-    # Read energy from LAMMPS output
-    engs1 = np.loadtxt("eng.txt") * units.kcal/units.mol
-    stress1 = -np.loadtxt("stress.txt").flatten() * 101325 * units.Pascal
-    forces1 = get_force_arr("forces.txt").flatten() * units.kcal/units.mol
-
+    with open(path, 'w') as f: f.write(strs)
+    engs1, forces1, stress1 = execute_lammps(path, len(ref_data[0]))
+#
+#
+#    # Run LAMMPS
+#    os.system("rm -f eng.txt stress.txt forces.txt")
+#    os.system("lmp -in lmp.in > lmp.out")
+#
+#    # Read energy from LAMMPS output
+#    engs1 = np.loadtxt("eng.txt") * units.kcal/units.mol
+#    stress1 = -np.loadtxt("stress.txt").flatten() * 101325 * units.Pascal
+#    forces1 = get_force_arr("forces.txt").flatten() * units.kcal/units.mol
+#
     # Reference data
     (engs, forces, stress, numbers, mask_e, mask_f, mask_s) = ref_data
     engs0 = engs / numbers
