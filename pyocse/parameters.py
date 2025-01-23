@@ -455,15 +455,15 @@ for molecular simulation.
 """
 class ForceFieldParametersBase:
     def __init__(self,
-                 smiles = ['CC(=O)OC1=CC=CC=C1C(=O)O'],
+                 smiles, # = ['CC(=O)OC1=CC=CC=C1C(=O)O'],
                  style = 'gaff',
                  chargemethod = 'am1bcc',
                  ff_evaluator = 'lammps',
+                 ref_evaluator = None,
                  e_coef = 1.0,
                  f_coef = 0.1,
                  s_coef = 1.0,
                  ncpu = 1,
-                 ff = None,
                  verbose = True,
                  ):
         """
@@ -480,11 +480,7 @@ class ForceFieldParametersBase:
         """
         self.smiles = smiles
         self.ff_style = style
-        if ff is not None:
-            self.ff = ff
-        else:
-            print("Initializing ForceField")
-            self.ff = forcefield(smiles, style, chargemethod)
+        self.ff = forcefield(smiles, style, chargemethod)
         # only works for 1:1 ratio cocrystal for now
         self.natoms_per_unit = sum([len(mol.atoms) for mol in self.ff.molecules])
         params_init, constraints, bounds = self.get_default_ff_parameters()
@@ -1470,7 +1466,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                  smiles = ['CC(=O)OC1=CC=CC=C1C(=O)O'],
                  style = 'gaff',
                  chargemethod = 'am1bcc',
-                 ref_evaluator = 'mace',
+                 ref_evaluator = None,
                  ff_evaluator = 'lammps',
                  e_coef = 1.0,
                  f_coef = 0.1,
@@ -1490,6 +1486,8 @@ class ForceFieldParameters(ForceFieldParametersBase):
                 ncpu,
                 verbose,
                 )
+        if ref_evaluator is not None:
+            self.set_ref_evaluator(ref_evaluator) 
 
     def set_ref_evaluator(self, ref_evaluator, device='cpu'):
         """
