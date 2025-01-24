@@ -292,7 +292,11 @@ def evaluate_ref_single(structure, numMol, calculator, natoms_per_unit,
     evaluate the reference structure with the ref_evaluator
     """
     structure = reset_lammps_cell(structure)
-    ref_dic = {'structure': structure,
+    print(structure.cell)
+    ref_dic = {#'structure': structure,
+               "numbers": structure.numbers,
+               "lattice": structure.cell,
+               "position": structure.positions,
                'energy': None,
                'forces': None,
                'stress': None,
@@ -738,8 +742,10 @@ class ForceFieldParametersBase:
     def get_lmp_inputs_from_ref_dics(self, ref_dics):
         lmp_strucs, lmp_dats = [], []
         for ref_dic in ref_dics:
+            #print(ref_dic)
             numMols = ref_dic['numMols']
             #structure = ref_dic['structure']
+            print(ref_dic['numbers'], ref_dic['lattice'])
             structure = Atoms(numbers = ref_dic['numbers'],
                               positions = ref_dic['position'],
                               cell = ref_dic['lattice'],
