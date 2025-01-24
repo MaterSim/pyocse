@@ -295,7 +295,7 @@ def evaluate_ref_single(structure, numMol, calculator, natoms_per_unit,
     print(structure.cell)
     ref_dic = {#'structure': structure,
                "numbers": structure.numbers,
-               "lattice": structure.cell,
+               "lattice": structure.cell.array,
                "position": structure.positions,
                'energy': None,
                'forces': None,
@@ -523,7 +523,7 @@ class ForceFieldParametersBase:
 
     def __repr__(self):
         return str(self)
-    
+
     def get_default_ff_parameters(self, coefs=[0.5, 1.5], deltas=[-0.2, 0.2]):
         """
         Get the initial FF parameters/bounds/constraints
@@ -745,12 +745,11 @@ class ForceFieldParametersBase:
             #print(ref_dic)
             numMols = ref_dic['numMols']
             #structure = ref_dic['structure']
-            print(ref_dic['numbers'], ref_dic['lattice'])
             structure = Atoms(numbers = ref_dic['numbers'],
                               positions = ref_dic['position'],
                               cell = ref_dic['lattice'],
                               pbc = [1, 1, 1])
- 
+
             lmp_struc, lmp_dat = self.get_lmp_input_from_structure(structure, numMols)
             lmp_strucs.append(lmp_struc)
             lmp_dats.append(lmp_dat)
@@ -889,10 +888,10 @@ class ForceFieldParametersBase:
                 structure = reset_lammps_cell(structure)
                 box = structure.cell.cellpar()
                 coordinates = structure.get_positions()
-                ff_dic = self.evaluate_ff_single(lmp_strucs[i], 
-                                                 numMol, 
+                ff_dic = self.evaluate_ff_single(lmp_strucs[i],
+                                                 numMol,
                                                  options,
-                                                 lmp_dats[i], 
+                                                 lmp_dats[i],
                                                  lmp_in,
                                                  box,
                                                  coordinates,
@@ -1165,18 +1164,18 @@ class ForceFieldParametersBase:
             force_arr.extend(force)
             stress_arr.extend(stress)
             N_force = len(force)
-            
-            if ref_dic['options'][0]: 
+
+            if ref_dic['options'][0]:
                 mask_eng.append(True)
             else:
                 mask_eng.append(False)
 
-            if ref_dic['options'][1]: 
+            if ref_dic['options'][1]:
                 mask_force.extend([True] * N_force)
             else:
                 mask_force.extend([False] * N_force)
 
-            if ref_dic['options'][2]: 
+            if ref_dic['options'][2]:
                 mask_stress.extend([True] * 6)
             else:
                 mask_stress.extend([False] * 6)
@@ -1493,7 +1492,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                 verbose,
                 )
         if ref_evaluator is not None:
-            self.set_ref_evaluator(ref_evaluator) 
+            self.set_ref_evaluator(ref_evaluator)
 
     def set_ref_evaluator(self, ref_evaluator, device='cpu'):
         """
