@@ -3,12 +3,8 @@ Global Optimizer to get the training data
 """
 import argparse
 import os
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module='torchani.aev')
-
 from pyxtal.optimize import WFS, DFS, QRS
 from pyxtal.representation import representation
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -21,7 +17,7 @@ if __name__ == "__main__":
     parser.add_argument("--ffopt", action='store_true',
                         help="enable ff optimization")
     parser.add_argument("-a", "--algo", dest="algo", default='WFS',
-                  		help="algorithm, default: WFS")
+                        help="algorithm, default: WFS")
 
     options = parser.parse_args()
 

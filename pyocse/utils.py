@@ -112,3 +112,26 @@ def which_lmp(add=None):
         if which(candidate):
             return candidate
     return None
+
+def find_outliers(data, threshold=3):
+    """
+    Find the outliers in the data according to the correlation
+
+    Args:
+        data (array): data array (N, 2)
+        threshold (float): threshold for the outlier
+    """
+    from scipy.spatial.distance import mahalanobis
+
+    # Compute the mean and covariance matrix
+    mean = np.mean(data, axis=0)
+    cov_matrix = np.cov(data.T)
+    inv_cov_matrix = np.linalg.inv(cov_matrix)
+
+    # Compute Mahalanobis distance for each point
+    distances = [mahalanobis(point, mean, inv_cov_matrix) for point in data]
+
+    # Set a threshold (e.g., 95th percentile)
+    threshold = np.percentile(distances, threshold)
+    outliers = np.where(distances > threshold)
+    return outliers

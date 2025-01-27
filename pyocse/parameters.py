@@ -1,36 +1,24 @@
+import os
 import xml.etree.ElementTree as ET
-from xml.dom import minidom
-import ast
-import os, time
-from copy import deepcopy
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 from scipy.optimize import minimize
-from math import ceil
-import matplotlib
-matplotlib.use('Agg')  # Non-interactive backend
-import matplotlib.pyplot as plt
 
 from ase import Atoms
 from ase.optimize.fire import FIRE
 from ase.constraints import UnitCellFilter, FixSymmetry
-
 from pyxtal import pyxtal
-from pyxtal.util import ase2pymatgen
-from pymatgen.core import Structure
-
 from pyocse.utils import reset_lammps_cell
-from pyocse.forcefield import forcefield
 from pyocse.lmp import LAMMPSCalculator
-from pyocse.interfaces.parmed import ParmEdStructure
-from pyocse.charmm import CHARMMStructure
 
-from lammps import PyLammps  # , get_thermo_data
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend
 
-#import multiprocessing as mp
 
 def timeit(method):
+    import time
     def timed(*args, **kw):
         start_time = time.time()
         result = method(*args, **kw)
@@ -42,7 +30,7 @@ def timeit(method):
     return timed
 
 
-def string_to_array(s):
+def string_to_array(s, dtype=float):
     """Converts a formatted string back into a 1D or 2D NumPy array."""
     # Split the string into lines
     lines = s.strip().split('\n')
@@ -50,12 +38,12 @@ def string_to_array(s):
     # Check if it's a 1D or 2D array based on the number of lines
     if len(lines) == 1:
         # Treat as 1D array if there's only one line
-        array = np.fromstring(lines[0][1:-1], sep=',')
+        array = np.fromstring(lines[0][1:-1], sep=',', dtype=dtype)
         #print(lines); print(lines[0][1:-1]); print(array); import sys; sys.exit()
     else:
         # Treat as 2D array if there are multiple lines
-        array = [np.fromstring(line, sep=' ') for line in lines if line]
-        array = np.array(array)
+        array = [np.fromstring(line, sep=' ', dtype=dtype) for line in lines if line]
+        array = np.array(array, dtype=dtype)
 
     return array
 
@@ -69,7 +57,11 @@ def array_to_string(arr):
     return '\n' + '\n'.join(lines) + '\n'
 
 def xml_to_dict_list(filename):
-    # Parse the XML file
+    """
+    Parse the XML file and return a list of dictionaries.
+    """
+    import ast
+
     tree = ET.parse(filename)
     root = tree.getroot()
 
@@ -86,9 +78,10 @@ def xml_to_dict_list(filename):
 
                 if text != 'None':
                     #print(text)
-                    value = string_to_array(text)
-                    #if key == 'position': print(value, value.shape)
-                    #if key == 'stress': print(value, value.shape)
+                    if key in ['numbers', 'numMols']:
+                        value = string_to_array(text, dtype=int)
+                    else:
+                        value = string_to_array(text)
                 else:
                     value = None
             elif key in ['options']:
@@ -112,7 +105,11 @@ def xml_to_dict_list(filename):
 
 
 def prettify(elem):
-    """Return a pretty-printed XML string for the Element."""
+    """
+    Return a pretty-printed XML string for the Element.
+    """
+    from xml.dom import minidom
+
     rough_string = ET.tostring(elem, 'utf-8')
     reparsed = minidom.parseString(rough_string)
     return reparsed.toprettyxml(indent="  ")
@@ -441,7 +438,7 @@ def add_strucs_par(strs, smiles):
     numMols = []
     for _str in strs:
         try:
-            pmg = Structure.from_str(_str, fmt='cif')
+            pmg = read_cif_str(_str, fmt='cif')
             c0 = pyxtal(molecular=True)
             c0.from_seed(pmg, molecules=smiles)
             strucs.append(c0.to_ase(resort=False))
@@ -482,6 +479,8 @@ class ForceFieldParametersBase:
             f_coef (float): coefficients for forces
             s_coef (float): coefficients for stress
         """
+        from pyocse.forcefield import forcefield
+
         self.smiles = smiles
         self.ff_style = style
         self.ff = forcefield(smiles, style, chargemethod)
@@ -1108,12 +1107,6 @@ class ForceFieldParametersBase:
             if filename.endswith('.xml'):
                 dics = xml_to_dict_list(filename)
                 for dic in dics:
-                    #if reset_cell:
-                    #    structure = Atoms(numbers = dic['numbers'],
-                    #                  positions = dic['position'],
-                    #                  cell = dic['lattice'],
-                    #                  pbc = [1, 1, 1])
-                    #    structure = reset_lammps_cell(structure)
                     dic0 = {
                             #'structure': structure,
                             'numbers': dic['numbers'],
@@ -1734,6 +1727,8 @@ class ForceFieldParameters(ForceFieldParametersBase):
         Returns:
             The optimized values
         """
+        from copy import deepcopy
+
         x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0, obj)
         t = t0
         current_x = x
@@ -1898,6 +1893,8 @@ class ForceFieldParameters(ForceFieldParametersBase):
         Returns:
             ase_atoms object with the charmm ff information
         """
+        from pyocse.interfaces.parmed import ParmEdStructure
+        from pyocse.charmm import CHARMMStructure
 
         self.ff.update_parameters(params)
         n_mols = [1] * len(self.ff.smiles)
@@ -1927,6 +1924,8 @@ class ForceFieldParameters(ForceFieldParametersBase):
         Returns:
             ref_dics with the removed unwanted entries
         """
+        from pyxtal.util import ase2pymatgen
+
         mols = [smi+'.smi' for smi in self.smiles]
         _ref_dics = []
         for i, ref_dic in enumerate(ref_dics):
@@ -2091,7 +2090,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
         if self.ncpu == 1:
             for i, id in enumerate(ids):
-                pmg = Structure.from_str(strs[id], fmt='cif')
+                pmg = read_cif_str(strs[id], fmt='cif')
                 c0 = pyxtal(molecular=True)
                 c0.from_seed(pmg, molecules=smiles)
                 strucs.append(c0.to_ase(resort=False))
@@ -2129,10 +2128,14 @@ class ForceFieldParameters(ForceFieldParametersBase):
         """
         _ref_dics = []
         self.update_ff_parameters(parameters)
-        for i, ref_dic in enumerate(ref_dics):
+        for ref_dic in ref_dics:
             self.ase_templates = {}
             self.lmp_dat = {}
-            ff_dic = self.evaluate_ff_single(ref_dic['structure'], ref_dic['numMols'])
+            structure = Atoms(numbers = ref_dic['numbers'],
+                              positions = ref_dic['position'],
+                              cell = ref_dic['lattice'],
+                              pbc = [1, 1, 1])
+            ff_dic = self.evaluate_ff_single(structure, ref_dic['numMols'])
             e1 = ff_dic['energy']/ff_dic['replicate'] + parameters[-1]
             e2 = ref_dic['energy']/ff_dic['replicate']
             if abs(e1-e2) < dE:
@@ -2154,6 +2157,15 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
         print("Removed {:d} entries by error".format(len(ref_dics)-len(_ref_dics)))
         return _ref_dics
+    
+def read_cif_str(_str):
+    """
+    Read the cif string and return the pymatgen structure
+    """
+    from pymatgen.core import Structure    
+    pmg = Structure.from_str(_str, fmt='cif')
+    return pmg
+
 
 if __name__ == "__main__":
     from pyxtal.db import database
