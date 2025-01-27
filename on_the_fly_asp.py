@@ -10,7 +10,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-g", "--gen", dest="gen", type=int, default=10,
                         help="Number of generation, optional")
-    parser.add_argument("-p", "--pop", dest="pop", type=int, default=10,
+    parser.add_argument("-p", "--pop", dest="pop", type=int, default=100,
                         help="Population size, optional")
     parser.add_argument("-n", "--ncpu", dest="ncpu", type=int, default=1,
                         help="cpu number, optional")
@@ -39,6 +39,7 @@ if __name__ == "__main__":
              N_pop = options.pop,
              N_cpu = options.ncpu,
              ff_style = 'gaff',
+             #ff_parameters = "parameters_opt_pso_2.xml",
              ff_opt = True,
             )
     go.run() #ref_pmg=pmg)

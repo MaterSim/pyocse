@@ -2157,12 +2157,12 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
         print("Removed {:d} entries by error".format(len(ref_dics)-len(_ref_dics)))
         return _ref_dics
-    
+
 def read_cif_str(_str):
     """
     Read the cif string and return the pymatgen structure
     """
-    from pymatgen.core import Structure    
+    from pymatgen.core import Structure
     pmg = Structure.from_str(_str, fmt='cif')
     return pmg
 
