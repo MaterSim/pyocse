@@ -202,7 +202,12 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
     for ref_dic, lmp_struc, lmp_dat in zip(ref_dics, lmp_strucs, lmp_dats):
         options = ref_dic['options']
         replicate = ref_dic['replicate']
-        eng, force, stress = evaluate_structure(ref_dic['structure'],
+        structure = Atoms(numbers = ref_dic['numbers'],
+                          positions = ref_dic['position'],
+                          cell = ref_dic['lattice'],
+                          pbc = [1, 1, 1])
+
+        eng, force, stress = evaluate_structure(structure,
                                                 lmp_struc,
                                                 lmp_dat,
                                                 lmp_in,
@@ -333,7 +338,6 @@ def augment_ref_par(strucs, numMols, calculator, steps, N_vibs,
     ref_dics = []
 
     for numMol, ref_structure in zip(numMols, strucs):
-        #print(ref_structure)
         ref_dics.extend(augment_ref_single(ref_structure,
                                            numMol,
                                            calculator,
@@ -371,12 +375,6 @@ def augment_ref_single(ref_structure, numMol, calculator, steps,
 
     # reset_lammps_cell and make supercell (QZ......)
     cell = ref_structure.get_cell_lengths_and_angles()[:3]
-    # Disable supercell
-    #supercell = [1, 1, 1]
-    #for ax in range(3):
-    #    supercell[ax] = int(ceil(6.5/cell[ax])) # to save some time?
-    #    numMols = [n * supercell[ax] for n in numMols]
-    #ref_structure *= supercell
     ref_structure = reset_lammps_cell(ref_structure)
 
     ref_dic = evaluate_ref_single(ref_structure,
@@ -1478,6 +1476,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                 style,
                 chargemethod,
                 ff_evaluator,
+                ref_evaluator,
                 e_coef,
                 f_coef,
                 s_coef,
@@ -1495,10 +1494,12 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
         if ref_evaluator == 'mace':
             from mace.calculators import mace_mp
+            import torch
             self.calculator = mace_mp(model = "small",
                                       dispersion = True,
-                                      default_dtype = "float64",
+                                      default_dtype = "float32",
                                       device = device)
+
         elif ref_evaluator == 'ani':
             from torchani import models
             self.calculator = models.ANI2x().ase()
