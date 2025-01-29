@@ -159,8 +159,12 @@ def evaluate_ff_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset, E_only,
     for ref_dic, lmp_struc, lmp_dat in zip(ref_dics, lmp_strucs, lmp_dats):
         options = ref_dic['options']
         numMol = ref_dic['numMols']
-        efs = evaluate_structure(ref_dic['structure'],
-                                 #numMol,
+        structure = Atoms(numbers = ref_dic['numbers'],
+                          positions = ref_dic['position'],
+                          cell = ref_dic['lattice'],
+                          pbc = [1, 1, 1])
+
+        efs = evaluate_structure(structure,
                                  lmp_struc,
                                  lmp_dat,
                                  lmp_in,
@@ -202,7 +206,12 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
     for ref_dic, lmp_struc, lmp_dat in zip(ref_dics, lmp_strucs, lmp_dats):
         options = ref_dic['options']
         replicate = ref_dic['replicate']
-        eng, force, stress = evaluate_structure(ref_dic['structure'],
+        structure = Atoms(numbers = ref_dic['numbers'],
+                          positions = ref_dic['position'],
+                          cell = ref_dic['lattice'],
+                          pbc = [1, 1, 1])
+
+        eng, force, stress = evaluate_structure(structure,
                                                 lmp_struc,
                                                 lmp_dat,
                                                 lmp_in,
@@ -734,7 +743,6 @@ class ForceFieldParametersBase:
         for ref_dic in ref_dics:
             #print(ref_dic)
             numMols = ref_dic['numMols']
-            #structure = ref_dic['structure']
             structure = Atoms(numbers = ref_dic['numbers'],
                               positions = ref_dic['position'],
                               cell = ref_dic['lattice'],
@@ -774,7 +782,6 @@ class ForceFieldParametersBase:
         os.makedirs(DIR, exist_ok=True)
         for i, ref_dic in enumerate(ref_dics):
             numMols = ref_dic['numMols']
-            #structure = ref_dic['structure']
             structure = Atoms(numbers = ref_dic['numbers'],
                               positions = ref_dic['position'],
                               cell = ref_dic['lattice'],
@@ -870,7 +877,6 @@ class ForceFieldParametersBase:
             for i, ref_dic in enumerate(ref_dics):
                 options = ref_dic['options']
                 numMol = ref_dic['numMols']
-                #structure = ref_dic['structure']
                 structure = Atoms(numbers = ref_dic['numbers'],
                                   positions = ref_dic['position'],
                                   cell = ref_dic['lattice'],
@@ -1526,7 +1532,11 @@ class ForceFieldParameters(ForceFieldParametersBase):
         f_mse, f_r2, s_mse, s_r2 = 0, 0, 0, 0
         self.update_ff_parameters(parameters)
         offset_opt = parameters[-1]
-        structure, options = ref_dic['structure'], ref_dic['options']
+        structure = Atoms(numbers = ref_dic['numbers'],
+                          positions = ref_dic['position'],
+                          cell = ref_dic['lattice'],
+                          pbc = [1, 1, 1])
+        options = ref_dic['options']
 
         ff_dic = self.evaluate_ff_single(structure, ref_dic['numMols'], options, None)
         e_diff = ff_dic['energy']/ff_dic['replicate'] + offset_opt - ref_dic['energy']/ff_dic['replicate']
@@ -1922,7 +1932,11 @@ class ForceFieldParameters(ForceFieldParametersBase):
         _ref_dics = []
         for i, ref_dic in enumerate(ref_dics):
             c = pyxtal(molecular=True)
-            pmg = ase2pymatgen(ref_dic['structure'])
+            structure = Atoms(numbers = ref_dic['numbers'],
+                              positions = ref_dic['position'],
+                              cell = ref_dic['lattice'],
+                              pbc = [1, 1, 1])
+            pmg = ase2pymatgen(structure)
             try:
                 c.from_seed(pmg, molecules=mols)
                 if c.check_short_distances_by_dict(criteria) == 0:
@@ -1948,8 +1962,11 @@ class ForceFieldParameters(ForceFieldParametersBase):
             # Remove the templates
             self.ase_templates = {}
             self.lmp_dat = {}
-
-            ff_dic = self.evaluate_ff_single(ref_dic['structure'], ref_dic['numMols'])
+            structure = Atoms(numbers = ref_dic['numbers'],
+                              positions = ref_dic['position'],
+                              cell = ref_dic['lattice'],
+                              pbc = [1, 1, 1])
+            ff_dic = self.evaluate_ff_single(structure, ref_dic['numMols'])
             e1 = ff_dic['energy']/ff_dic['replicate'] + parameters[-1]
             e2 = ref_dic['energy']/ff_dic['replicate']
             print('\nStructure {:3d}'.format(i))
