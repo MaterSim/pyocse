@@ -202,12 +202,7 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
     for ref_dic, lmp_struc, lmp_dat in zip(ref_dics, lmp_strucs, lmp_dats):
         options = ref_dic['options']
         replicate = ref_dic['replicate']
-        structure = Atoms(numbers = ref_dic['numbers'],
-                          positions = ref_dic['position'],
-                          cell = ref_dic['lattice'],
-                          pbc = [1, 1, 1])
-
-        eng, force, stress = evaluate_structure(structure,
+        eng, force, stress = evaluate_structure(ref_dic['structure'],
                                                 lmp_struc,
                                                 lmp_dat,
                                                 lmp_in,
@@ -358,11 +353,8 @@ def augment_ref_single(ref_structure, numMol, calculator, steps,
     Add max_E and min_dE to prevent adding the high-E structures
     """
 
-    #coefs_stress = [0.90, 0.95, 1.08, 1.15, 1.20]
-    #dxs = [0.025, 0.050, 0.075]
     coefs_stress = [0.85, 0.92, 1.10, 1.25]
     dxs = [0.01, 0.02, 0.03]
-
 
     ref_dics = []
     print('# Relaxation to get the ground state: 1')
@@ -372,6 +364,7 @@ def augment_ref_single(ref_structure, numMol, calculator, steps,
     dyn = FIRE(ecf, a=0.1, logfile=logfile)
     dyn.run(fmax=fmax, steps=steps)
     ref_structure.set_constraint()
+
 
     # reset_lammps_cell and make supercell (QZ......)
     cell = ref_structure.get_cell_lengths_and_angles()[:3]
@@ -1494,12 +1487,10 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
         if ref_evaluator == 'mace':
             from mace.calculators import mace_mp
-            import torch
             self.calculator = mace_mp(model = "small",
                                       dispersion = True,
                                       default_dtype = "float32",
                                       device = device)
-
         elif ref_evaluator == 'ani':
             from torchani import models
             self.calculator = models.ANI2x().ase()

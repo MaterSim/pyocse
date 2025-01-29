@@ -235,7 +235,7 @@ def get_gaff(smiles, chargemethod="gas", base="ff"):
 
     # with temporary_directory_change(cleanup=False, prefix='tmp'):
     with temporary_directory_change(cleanup=True, prefix="tmp"):
-        ase_atoms, pmgmol, charge, spin, _ = smiles_to_ase_and_pmg(smiles, "test")
+        _, pmgmol, charge, spin, _ = smiles_to_ase_and_pmg(smiles, "test")
         path = Path(f"{base}_init.mol2")
         pmgmol.to(filename=str(path), fmt="mol2")
 

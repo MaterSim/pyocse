@@ -11,7 +11,7 @@ git clone this repository and then go to the root directory
 ```
 conda install -c conda-forge mamba
 mamba env create -n ocse
-conda activate osce
+conda activate ocse
 pip install .
 ```
 
