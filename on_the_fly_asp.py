@@ -1,10 +1,15 @@
 """
 Global Optimizer to get the training data
 """
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
 import argparse
 import os
 from pyxtal.optimize import WFS, DFS, QRS
 from pyxtal.representation import representation
+
+from multiprocessing import set_start_method
+set_start_method('spawn', force=True)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
