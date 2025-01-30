@@ -47,11 +47,11 @@ class Builder():
             for i, smi in enumerate(smiles):
                 smi = smiles[i]
                 if style == 'gaff':
-                    dic = convert_gaff(smiles=smi, 
+                    dic = convert_gaff(smiles=smi,
                                        molname=str(i),
                                        chargemethod=chargemethod)
                 else:
-                    dic = convert_openff(smiles=smi, 
+                    dic = convert_openff(smiles=smi,
                                          molname=str(i),
                                          chargemethod=chargemethod)
                 self.dics.append(dic)

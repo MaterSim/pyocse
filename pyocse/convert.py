@@ -24,7 +24,7 @@ def convert_gaff(
 ) -> dict:
     """
     Do ambertools to generate gaff parameter of target smiles.
-    
+
     Args:
         smiles: str, target smiles
         molname: str, name of the molecule
@@ -45,24 +45,22 @@ def convert_gaff(
         # Don't run charge analysis for 1-atom residue
         if len(ase_atoms) == 1:
             chargemethod = None
-            print(pmgmol.to(fmt="mol2"))
+            #print(pmgmol.to(fmt="mol2"))
 
-        amber_files = run_antechamber(molname, path, charge, spin, 
-                                      resname="UNK", 
-                                      atomtyping=atomtyping, 
-                                      chargemethod=chargemethod, 
+        amber_files = run_antechamber(molname, path, charge, spin,
+                                      resname="UNK",
+                                      atomtyping=atomtyping,
+                                      chargemethod=chargemethod,
                                       base=base)
         struc = amber_to_pdstruc(amber_files["prmtop"], amber_files["inpcrd"], base)
 
-    dic = {
-        "mol_name": molname,
-        "mol_smi": smiles,
-        "mol_formula": ase_atoms.get_chemical_formula(),
-        "mol_weight": float(sum(ase_atoms.get_masses())),
-        "mol_charge": charge,
-        "mol_spin_multiplicity": spin,
-        "data": {"omm_info": struc.ffdic},
-    }
+    dic = {"mol_name": molname,
+           "mol_smi": smiles,
+           "mol_formula": ase_atoms.get_chemical_formula(),
+           "mol_weight": float(sum(ase_atoms.get_masses())),
+           "mol_charge": charge,
+           "mol_spin_multiplicity": spin,
+           "data": {"omm_info": struc.ffdic}}
     if savetoml:
         dump_toml(dic, savetoml)
 
@@ -94,8 +92,9 @@ def convert_openff(
     prefix="_".join(["tmp", molname, "openff"]) + "_"
     with temporary_directory_change(cleanup=cleanup, prefix=prefix):
         ase_atoms, _, charge, spin, rdkit_mol = smiles_to_ase_and_pmg(smiles, molname)
-        molecule = Molecule.from_rdkit(rdkit_mol)
-        molecule.assign_partial_charges(chargemethod)
+        #molecule = Molecule.from_rdkit(rdkit_mol)
+        molecule = Molecule.from_smiles(smiles, allow_undefined_stereo=True)
+        #molecule.assign_partial_charges(chargemethod)
         topology = Topology.from_molecules(molecule)
         forcefield = ForceField(forcefield_name)
         out = Interchange.from_smirnoff(force_field=forcefield, topology=topology)

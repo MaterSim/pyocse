@@ -228,7 +228,6 @@ def get_gaff(smiles, chargemethod="gas", base="ff"):
     Get gaff parameters from smiles
     """
     from pathlib import Path
-
     from pyocse.interfaces.ambertools import run_antechamber
     from pyocse.interfaces.parmed import amber_to_pdstruc
     from pyocse.utils import temporary_directory_change

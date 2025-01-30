@@ -21,6 +21,7 @@ dependencies:
     - lammps==2023.8.2.2.0
     - torch-dftd==0.4.0
     - torchani
+    - shapely
     #- seaborn
   - black
   - flake8
