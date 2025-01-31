@@ -17,7 +17,8 @@ dependencies:
   #Dev tools at github commit
   - pip:
     - pyxtal==1.0.7
-    - git+https://github.com/ACEsuit/mace@main
+      #- git+https://github.com/ACEsuit/mace@main
+    - mace-torch==0.3.7
     - lammps==2023.8.2.2.0
     - torch-dftd==0.4.0
     - torchani
