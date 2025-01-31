@@ -119,9 +119,6 @@ kspace_modify gewald {gewald:} mesh {fftx:} {ffty:} {fftz:} order 6
         if len(self.dihedrals) == 0:
             head = head.replace("dihedral_style ", "#dihedral_style ")
         in_str += head
-        if slab:
-            in_str += "kspace_modify slab 3.0\n"
-
         for i, (_k, t) in enumerate(self.atomtypes_with_resname.items(), 1):
             in_str += "pair_coeff {0:d} {0:d} {1:11.7f} {2:11.7f}\n".format(
                 i, t.epsilon, t.sigma
@@ -133,6 +130,9 @@ kspace_modify gewald {gewald:} mesh {fftx:} {ffty:} {fftz:} order 6
                                 fftx=fftx,
                                 ffty=ffty,
                                 fftz=fftz)
+        if slab:
+            in_str += "kspace_modify slab 3.0\n"
+
         return in_str
 
     def _update_input(self, fin, lines):
