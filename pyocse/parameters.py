@@ -955,7 +955,7 @@ class ForceFieldParametersBase:
         os.chdir(pwd)
 
         if obj == 'R2':
-            np.savetxt('3.txt', eng_arr[0]); np.savetxt('4.txt', eng_arr[1])
+            #np.savetxt('3.txt', eng_arr[0]); np.savetxt('4.txt', eng_arr[1])
             total_obj -= self.e_coef * compute_r2(eng_arr[0], eng_arr[1])
             total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
             total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])

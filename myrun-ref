@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=120:00:00
 #SBATCH --mem-per-cpu=2G
-#SBATCH --cpus-per-task=96
+#SBATCH --cpus-per-task=48
 
 export OMP_NUM_THREADS=1
 
@@ -18,7 +18,8 @@ echo "Job ID: $SLURM_JOB_ID"
 #echo "Job Name: $SLURM_JOB_NAME"
 #echo "CPUS_PER_TASK=${NCPU}, NSTEP=${NSTEP}, TAG=${TAG}"
 
-python test_pso.py --ncpu 96 --steps 5 --dir 96-5 --ref dataset/references-aspirin.xml > log-96-5
+#python on_the_fly_asp.py -g 50 -p 100 -n 8 > log-test-otf
+python test_pso_para.py --ncpu 48 --steps 200 --dir PSO_2_200 --ref aspirin-simple/references.xml > log-pso-48-200
 
 # Usage
 # sbatch -J N10-S100 -c 10 myrun 100

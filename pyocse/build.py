@@ -74,6 +74,9 @@ class Builder():
             molecule = ommffs_to_paramedstruc(ffdic["omm_forcefield"],
                                               ffdic["mol2"],
                                               cls=cls)
+            # To correct the charge for single atom case
+            if len(molecule.atoms) == 1:
+                molecule.atoms[0].charge = d['mol_charge']
             molecule.ffdic = ffdic
             molecule.change_residue_name(residuename)
             molecules.append(molecule)
