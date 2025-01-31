@@ -9,17 +9,16 @@ This is a public repository that aims to automate the simulation of organic crys
 git clone this repository and then go to the root directory
 
 ```
-conda install -c conda-forge mamba
-mamba env create -n ocse
-conda activate ocse
+conda env create -n pyocse
+conda activate pyocse
 pip install .
 ```
 
 *If you want to update the existing ocse enviroment*
 
 ```
-conda activate ocse
-mamba env update --file environment.yml
+conda activate pyocse
+conda env update --file environment.yml
 ```
 
 ## LAMMPS Setup:
