@@ -16,7 +16,7 @@ dependencies:
   - xmltodict=0.13.0
   #Dev tools at github commit
   - pip:
-    - pyxtal==1.0.7
+    - pyxtal
       #- git+https://github.com/ACEsuit/mace@main
     - mace-torch==0.3.7
     - lammps==2023.8.2.2.0
