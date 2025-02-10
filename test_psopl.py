@@ -3,7 +3,7 @@ from pyocse.parameters import ForceFieldParametersBase, timeit
 from time import time
 import os
 import numpy as np
-from ase import units 
+from ase import units
 from lammps import PyLammps
 import numpy as np
 import multiprocessing as mp
@@ -22,7 +22,7 @@ def worker(para_values):
     """
     score = obj_function(para_values, template, ref_data, e_offset, obj="R2")
     return score
-    
+
 def execute_lammps(lmp_in, N_strucs):
     """
     Args:
@@ -43,11 +43,11 @@ def execute_lammps(lmp_in, N_strucs):
         stress_vars = ['pxx', 'pyy', 'pzz', 'pyz', 'pxz', 'pxy']
         for i, var in enumerate(stress_vars):
             stress[i] = lmp.variables[var].value
-            
+
         fx = np.frombuffer(lmp.variables['fx'].value)
         fy = np.frombuffer(lmp.variables['fy'].value)
         fz = np.frombuffer(lmp.variables['fz'].value)
-        
+
         stress = -stress * 101325 * units.Pascal
         force = np.vstack((fx, fy, fz)).T.flatten() * units.kcal/units.mol
         engs.append(energy)
@@ -122,7 +122,7 @@ def obj_function(para_value, template, ref_data, e_offset, obj='R2'):
     os.makedirs(folder_name, exist_ok=True)
     lmp_in_file = os.path.join(folder_name, "lmp.in")
     strs = f"""
-clear 
+clear
 
 units real
 atom_style full
@@ -187,7 +187,7 @@ mass 21   1.0079470 #U00H21
             [id1, id2] = items
             fact = 2**(5/6)
             strs += f'{key} {para_value[id1]} {para_value[id2]*fact}\n'
-    
+
     strs += f"""
 # dynamically specify the mesh grid based on the box
 # Read box dimensions
@@ -215,14 +215,14 @@ variable pxy equal pxy
 variable fx atom fx
 variable fy atom fy
 variable fz atom fz
-"""   
+"""
 
     e_coef = 1
     f_coef = 1
     s_coef = 1
     with open(f"{lmp_in_file}", 'w') as f: f.write(strs)
     engs1, forces1, stress1 = execute_lammps(f"{lmp_in_file}", len(ref_data[0]))
-    
+
     # Reference data
     (engs, forces, stress, numbers, mask_e, mask_f, mask_s) = ref_data
     engs0 = engs / numbers
@@ -232,7 +232,7 @@ variable fz atom fz
 
     # FF data
     engs1 /= numbers
-    engs1 = engs1[mask_e] 
+    engs1 = engs1[mask_e]
     engs1 += e_offset
     forces1 = forces1[mask_f]
     stress1 = stress1[mask_s]
@@ -251,19 +251,19 @@ variable fz atom fz
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ncpu", type=int, default=10, 
+    parser.add_argument("--ncpu", type=int, default=10,
                         help="Number of CPUs to use, default is 5.")
-    parser.add_argument("--steps", type=int, default=30, 
+    parser.add_argument("--steps", type=int, default=30,
                         help="Number of opt steps, default is 30.")
-    parser.add_argument("--ref", default="dataset/references.xml", 
+    parser.add_argument("--ref", default="dataset/references.xml",
                         help="Reference dataset file, default is dataset/references.xml.")
-    parser.add_argument("--params", default="dataset/parameters.xml", 
+    parser.add_argument("--params", default="dataset/parameters.xml",
                         help="Initial parameters file, default is dataset/parameters.xml.")
-    parser.add_argument("--style", default="openff", 
+    parser.add_argument("--style", default="openff",
                         help="Force field style, default is openff.")
-    parser.add_argument("--export", default="parameters_opt_pso.xml", 
+    parser.add_argument("--export", default="parameters_opt_pso.xml",
                         help="Export optimized parameters, default is parameters_opt_pso.xml.")
-    parser.add_argument("--dir", default="mtest", 
+    parser.add_argument("--dir", default="mtest",
                         help="Output directory, default is test.")
 
     args = parser.parse_args()
@@ -277,16 +277,16 @@ if __name__ == "__main__":
         style=args.style,
         ncpu=1,
     )
-    
+
     p0, errors = params.load_parameters(args.params)
     ref_dics = params.load_references(args.ref)[:20]
-    
+
     os.makedirs(args.dir, exist_ok=True)
     os.chdir(args.dir)
 
     # Prepare lmp.dat at once
     params.write_lmp_dat_from_ref_dics(ref_dics)
-    
+
     e_offset, params_opt = params.optimize_offset(ref_dics, p0)
     params.update_ff_parameters(params_opt)
     errs = params.plot_ff_results("performance_init.png", ref_dics, [params_opt])
@@ -336,7 +336,7 @@ if __name__ == "__main__":
         "pair_coeff 10 10": [62, 61],
         "pair_coeff 11 11": [64, 63],
         "pair_coeff 12 12": [66, 65],
-        "pair_coeff 13 13": [68, 67],  
+        "pair_coeff 13 13": [68, 67],
         "pair_coeff 14 14": [70, 69],
         "pair_coeff 15 15": [72, 71],
         "pair_coeff 16 16": [74, 73],
@@ -351,7 +351,7 @@ if __name__ == "__main__":
 
     # Stepwise optimization loop
     terms = ["bond", "angle", "proper", "vdW"]
-    
+
     sub_vals, sub_bounds, _ = params.get_sub_parameters(params_opt, terms)
     vals = np.concatenate(sub_vals)
     bounds = np.concatenate(sub_bounds)
@@ -359,31 +359,36 @@ if __name__ == "__main__":
     # PSO-GA optimization
     optimizer = PSO(
             obj_function=obj_function_par,
-            obj_args=(template, ref_data, e_offset,args.ncpu),
+            obj_args=(template, ref_data, e_offset, args.ncpu),
             bounds=bounds,
             seed=vals.reshape((1, len(vals))),
-            num_particles=5, 
+            num_particles=5,
             dimensions=len(bounds),
             inertia=0.5,
             cognitive=0.2,
             social=0.8,
             max_iter=5, #args.steps,
             ncpu=5, #args.ncpu,
-            resume_file="../mtest7/pso.xml" 
+            xml_file="pso.xml", 
     )
-  
+
     best_position, best_score = optimizer.optimize()
-    
+
     params_opt = params.set_sub_parameters(best_position, terms, params_opt)
     e_offset, params_opt = params.optimize_offset(ref_dics, params_opt)
     params.update_ff_parameters(params_opt)
     print("e_offset", e_offset)
-    
+
     t = (time() - t0) / 60
     print(f"\nStepwise optimization for terms {terms} completed in {t:.2f} minutes.")
     print(f"Best Score: {best_score:.4f}")
-    
+
     # Final evaluation and saving results
     errs = params.plot_ff_results("performance_opt_pso.png", ref_dics, [params_opt])
     params.export_parameters("parameters_opt_pso.xml", params_opt, errs[0])
     print("Optimization completed successfully.")
+
+    optimizer = PSO.load("pso.xml", obj_function_par, (template, ref_data, e_offset, args.ncpu))
+    print(optimizer)
+    print(optimizer.global_best_id, optimizer.global_best_score)
+
