@@ -1,7 +1,6 @@
-import numpy as np
 import logging
 import xml.etree.ElementTree as ET
-import os
+import numpy as np
 from pyxtal.util import prettify
 
 class PSO:
@@ -24,17 +23,17 @@ class PSO:
         Initialize the PSO optimizer.
 
         Args:
-            - obj_function: Objective function to minimize.
-            - bounds: Tuple (lower_bounds, upper_bounds) for each dimension.
-            - num_particles: Number of particles.
-            - dimensions: Number of dimensions in the search space.
-            - inertia: Inertia weight for velocity update (PSO).
-            - cognitive: Cognitive (personal best) weight (PSO).
-            - social: Social (global best) weight (PSO).
-            - max_iter: Maximum number of iterations.
-            - ncpu: number of parallel processes
-            - log_file: log file name
-            - evalute: bool, whether evaluate the objective function or not
+            obj_function: Objective function to minimize.
+            bounds: Tuple (lower_bounds, upper_bounds) for each dimension.
+            num_particles: Number of particles.
+            dimensions: Number of dimensions in the search space.
+            inertia: Inertia weight for velocity update (PSO).
+            cognitive: Cognitive (personal best) weight (PSO).
+            social: Social (global best) weight (PSO).
+            max_iter: Maximum number of iterations.
+            ncpu: number of parallel processes
+            log_file: log file name
+            evalute: bool, whether evaluate the objective function or not
         """
 
         self.obj_function = obj_function
@@ -62,10 +61,10 @@ class PSO:
         Initialize the state of the PSO optimizer.
 
         Args:
-            - seed: Initial positions for particles.
+            seed: Initial positions for particles.
 
         Returns:
-            - None
+            None
         """
         # Initialize particles
         self.positions = np.random.uniform(self.lower_bounds,
@@ -164,11 +163,9 @@ class PSO:
             self.global_best_position = self.personal_best_positions[min_idx]
             self.global_best_id = min_idx
 
-
     def optimize(self, x0=None):
         """Optimize with PSO and save results to XML."""
-        if x0 is not None:
-            self.positions = x0
+        if x0 is not None: self.positions = x0
 
         for iteration in range(self.max_iter):
             self.pso_step()
@@ -178,7 +175,7 @@ class PSO:
         return best_position, self.global_best_score
 
 
-    def save(self, filename="pso.xml"):
+    def save(self):
         """
         Save current best parameters to an XML file in array format.
         """
@@ -217,6 +214,12 @@ class PSO:
             p_elem = ET.SubElement(lb_elem, f"particle_{i}")
             p_elem.text = str(self.personal_best_positions[i].tolist())
 
+        # local best scores
+        lbs_elem = ET.SubElement(root, "local_best_scores")
+        for i in range(self.num_particles):
+            p_elem = ET.SubElement(lbs_elem, f"particle_{i}")
+            p_elem.text = str(self.personal_best_scores[i])
+
         # Positions
         pos_elem = ET.SubElement(root, "positions")
         for i in range(self.num_particles):
@@ -233,7 +236,7 @@ class PSO:
         pretty_xml = prettify(root)
 
         # Write the pretty-printed XML to a file
-        with open(filename, 'w') as f:
+        with open(self.xml_file, 'w') as f:
             f.write(pretty_xml)
 
     @classmethod
@@ -241,14 +244,14 @@ class PSO:
         """
         Create a PSO instance from a saved XML file.
 
-        Parameters:
-        - cls: PSO class
-        - filename: Path to the XML file containing saved PSO state
-        - obj_function: Objective function to minimize
-        - obj_args: Additional arguments to pass to the objective function
+        Args:
+            cls: PSO class
+            filename: Path to the XML file containing saved PSO state
+            obj_function: Objective function to minimize
+            obj_args: Additional arguments to pass to the objective function
 
         Returns:
-        - PSO instance with loaded state
+            PSO instance with loaded state
         """
 
         tree = ET.parse(filename)
@@ -301,6 +304,11 @@ class PSO:
         pso.personal_best_positions = np.zeros((pso.num_particles, pso.dimensions))
         for i, p_elem in enumerate(root.find("local_bests")):
             pso.personal_best_positions[i] = np.fromstring(p_elem.text.strip()[1:-1], sep=",")
+
+        # Load personal best scores
+        pso.personal_best_scores = np.zeros(pso.num_particles)
+        for i, p_elem in enumerate(root.find("local_best_scores")):
+            pso.personal_best_scores[i] = float(p_elem.text)
 
         # Load positions
         pso.positions = np.zeros((pso.num_particles, pso.dimensions))
