@@ -9,6 +9,7 @@ from ase import Atoms
 from ase.optimize.fire import FIRE
 from ase.constraints import UnitCellFilter, FixSymmetry
 from pyxtal import pyxtal
+from pyxtal.util import prettify
 from pyocse.utils import reset_lammps_cell
 from pyocse.lmp import LAMMPSCalculator
 
@@ -103,16 +104,6 @@ def xml_to_dict_list(filename):
         data.append(item_dict)
     return data
 
-
-def prettify(elem):
-    """
-    Return a pretty-printed XML string for the Element.
-    """
-    from xml.dom import minidom
-
-    rough_string = ET.tostring(elem, 'utf-8')
-    reparsed = minidom.parseString(rough_string)
-    return reparsed.toprettyxml(indent="  ")
 
 def compute_r2(y_true, y_pred):
     """
@@ -298,7 +289,7 @@ def evaluate_ref_single(structure, numMol, calculator, natoms_per_unit,
     evaluate the reference structure with the ref_evaluator
     """
     structure = reset_lammps_cell(structure)
-    print(structure.cell)
+    print(np.diag(structure.cell.array))
     ref_dic = {#'structure': structure,
                "numbers": structure.numbers,
                "lattice": structure.cell.array,
