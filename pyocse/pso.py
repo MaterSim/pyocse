@@ -217,6 +217,12 @@ class PSO:
             p_elem = ET.SubElement(lb_elem, f"particle_{i}")
             p_elem.text = str(self.personal_best_positions[i].tolist())
 
+        # Positions
+        pos_elem = ET.SubElement(root, "positions")
+        for i in range(self.num_particles):
+            p_elem = ET.SubElement(pos_elem, f"particle_{i}")
+            p_elem.text = str(self.positions[i].tolist())
+
         # Velocities
         vel_elem = ET.SubElement(root, "velocities")
         for i in range(self.num_particles):
@@ -295,6 +301,11 @@ class PSO:
         pso.personal_best_positions = np.zeros((pso.num_particles, pso.dimensions))
         for i, p_elem in enumerate(root.find("local_bests")):
             pso.personal_best_positions[i] = np.fromstring(p_elem.text.strip()[1:-1], sep=",")
+
+        # Load positions
+        pso.positions = np.zeros((pso.num_particles, pso.dimensions))
+        for i, p_elem in enumerate(root.find("positions")):
+            pso.positions[i] = np.fromstring(p_elem.text.strip()[1:-1], sep=",")
 
         # Load velocities
         pso.velocities = np.zeros((pso.num_particles, pso.dimensions))

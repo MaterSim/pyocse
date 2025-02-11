@@ -107,7 +107,7 @@ if __name__ == "__main__":
         params_opt = params.set_sub_parameters(best_position, terms, params_opt)
         e_offset, params_opt = params.optimize_offset(ref_dics, params_opt)
         params.update_ff_parameters(params_opt)
-        errs = params.plot_ff_results("performance_pso_{i+1}.png", ref_dics, [params_opt])
+        errs = params.plot_ff_results(f"performance_pso_{i+1}.png", ref_dics, [params_opt])
         params.export_parameters(f"{wdir}/parameters.xml", params_opt, errs[0])
 
         # Sampling to get the starting references.xml
