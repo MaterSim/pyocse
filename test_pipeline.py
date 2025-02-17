@@ -64,7 +64,8 @@ if __name__ == "__main__":
              N_pop = options.pop,
              N_cpu = options.ncpu,
              ff_style = style,
-             ff_opt = True)
+             ff_opt = True,
+             check = False)
     go.run()
     go.save('sampling.xml')
 
