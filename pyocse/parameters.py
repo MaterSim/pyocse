@@ -16,7 +16,10 @@ from pyocse.lmp import LAMMPSCalculator
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
-
+import warnings
+import multiprocessing
+from functools import partial
+from multiprocessing import Pool
 
 def timeit(method):
     import time
@@ -224,6 +227,15 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
             print('Neglect reference due to energy', eng, abs(e_diff), ref_dic['tag'])
     os.chdir(pwd)
     return (ff_eng, ff_force, ff_stress, ref_eng, ref_force, ref_stress)
+
+def parallel_worker_eval(args):
+    """Standalone function for parallel evaluation in evaluate_multi_references"""
+    (ref_dics, lmp_strucs, lmp_dats, lmp_in, offset_opt, natoms_per_unit,
+     e_coef, f_coef, s_coef, folder, max_E, max_dE) = args
+
+    return evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, 
+                                 offset_opt, natoms_per_unit, e_coef, 
+                                 f_coef, s_coef, folder, max_E, max_dE)
 
 def evaluate_structure(structure, lmp_struc, lmp_dat, lmp_in, natoms_per_unit):
     replicate = len(structure)/natoms_per_unit
@@ -439,7 +451,51 @@ def add_strucs_par(strs, smiles):
             print(_str)
     return strucs, numMols
 
+def obj_fun(x, fun_args):
+    """
+    Objective function for optimization.
+    This function must be defined at the top level to be pickleable.
+    """
+    self, ref_dics, parameters0, e_offset, obj, ids, terms, charges = fun_args
 
+    # Ensure ids and terms match
+    if len(ids) != len(terms):
+        print(f"WARNING: Mismatch detected - ids ({len(ids)}) vs. terms ({len(terms)})")
+        print(f"  ids: {ids}")
+        print(f"  terms: {terms}")
+        raise ValueError(f"Mismatch between ids and terms: ids({len(ids)}) vs terms({len(terms)})")
+
+    # Correctly extract values from x using ids
+    values = [x[ids[i - 1]:ids[i]] if i > 0 else x[:ids[0]] for i in range(len(ids))]
+
+    # Handle charge term separately
+    if charges is not None:
+        charges = np.array(charges, dtype=np.float64)
+        values.append(x[-1] * charges)  # Apply charge scaling
+
+    # Debugging output to verify slicing correctness
+    #print("DEBUG: Extracted Values from x per term:")
+    for i, term in enumerate(terms):
+        #print(f"  - {term}: {values[i]} (Shape: {np.shape(values[i])})")
+        pass
+    # Update parameters with extracted values
+    parameters = self.set_sub_parameters(values, terms, parameters0)
+    self.update_ff_parameters(parameters)
+
+    # Reset the LAMMPS input file
+    lmp_in = self.ff.get_lammps_in()
+    ff_values, ref_values, mse_values, r2_values = self.evaluate_multi_references(ref_dics, parameters, max_E, max_dE)
+
+    if obj == 'MSE':
+        objective = self.e_coef * mse_values[0] + self.f_coef * mse_values[1] + self.s_coef * mse_values[2]
+    elif obj == 'R2':
+        objective = - (self.e_coef * r2_values[0] + self.f_coef * r2_values[1] + self.s_coef * r2_values[2])
+    else:
+        raise ValueError("Invalid obj_type. Choose 'MSE' or 'R2'.")
+    
+    print("Total Objective:", objective)
+
+    return objective
 
 """
 A class to handle the optimization of force field parameters
@@ -499,7 +555,7 @@ class ForceFieldParametersBase:
         s += "Proper:      {:3d}\n".format(self.N_proper)
         s += "Improper:    {:3d}\n".format(self.N_improper)
         s += "vdW:         {:3d}\n".format(self.N_vdW)
-        s += "Charges:     {:3d}\n".format(self.N_charges)
+        s += "Charges:     {:3d}\n".format(self.N_charge)
         s += "Total:       {:3d}\n".format(len(self.params_init))
         s += "Constraints: {:3d}\n".format(len(self.constraints))
         s += "FF_code:    {:s}\n".format(self.ff_evaluator)
@@ -526,7 +582,7 @@ class ForceFieldParametersBase:
         params = []
         bounds = []
         constraints = []
-        N_bond, N_angle, N_proper, N_improper, N_vdW, N_charges = 0, 0, 0, 0, 0, 0
+        N_bond, N_angle, N_proper, N_improper, N_vdW, N_charge = 0, 0, 0, 0, 0, 0
 
         # Bond (k, req)
         for molecule in self.ff.molecules:
@@ -589,15 +645,15 @@ class ForceFieldParametersBase:
             id2 = len(params)
             sum_chg = sum(params[id1:id2])
             constraints.append((id1, id2, sum_chg))
-            N_charges += len(molecule.atoms)
+            N_charge += len(molecule.atoms)
 
-        # N_LJ, N_bond, N_angle, N_proper, N_improper, N_charges
+        # N_LJ, N_bond, N_angle, N_proper, N_improper, N_charge
         self.N_bond = N_bond
         self.N_angle = N_angle
         self.N_proper = N_proper
         self.N_improper = N_improper
         self.N_vdW = N_vdW
-        self.N_charges = N_charges
+        self.N_charge = N_charge
         # This is for the offset
         params.append(0)
 
@@ -640,10 +696,10 @@ class ForceFieldParametersBase:
                 id2 = id1 + self.N_vdW
             elif term == 'charge':
                 id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW
-                id2 = id1 + self.N_charges
+                id2 = id1 + self.N_charge
                 do_charge = True
             elif term == 'offset':
-                id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW + self.N_charges
+                id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW + self.N_charge
                 id2 = id1 + 1
 
             #if term != 'offset':
@@ -703,11 +759,12 @@ class ForceFieldParametersBase:
                 id2 = id1 + self.N_vdW
             elif term == 'charge':
                 id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW
-                id2 = id1 + self.N_charges
+                id2 = id1 + self.N_charge
                 sub_constraints = self.constraints
             elif term == 'offset':
-                id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW + self.N_charges
+                id1 = self.N_bond + self.N_angle + self.N_proper + self.N_vdW + self.N_charge
                 id2 = id1 + 1
+            
             parameters[id1:id2] = sub_para
 
         return parameters
@@ -843,117 +900,14 @@ class ForceFieldParametersBase:
         return ff_dic
 
     #@timeit
-    def get_objective(self, ref_dics, e_offset, E_only=False, lmp_in=None, obj='MSE', path='.'):
-        """
-        Compute the objective mismatch for the give ref_dics
-        Todo, Enable the parallel option
-
-        Args:
-            ref_dics:
-            e_offset:
-            E_only:
-            lmp_in:
-            obj:
-        """
-        # Set path for this evaluation
-        pwd = os.getcwd()
-        os.makedirs(path, exist_ok=True)
-        os.chdir(path)
-
-        total_obj = 0
-        eng_arr, force_arr, stress_arr = [[], []], [[], []], [[], []]
-        lmp_strucs, lmp_dats = self.get_lmp_inputs_from_ref_dics(ref_dics)
-
-        if self.ncpu == 1:
-            for i, ref_dic in enumerate(ref_dics):
-                options = ref_dic['options']
-                numMol = ref_dic['numMols']
-                structure = Atoms(numbers = ref_dic['numbers'],
-                                  positions = ref_dic['position'],
-                                  cell = ref_dic['lattice'],
-                                  pbc = [1, 1, 1])
-                structure = reset_lammps_cell(structure)
-                box = structure.cell.cellpar()
-                coordinates = structure.get_positions()
-                ff_dic = self.evaluate_ff_single(lmp_strucs[i],
-                                                 numMol,
-                                                 options,
-                                                 lmp_dats[i],
-                                                 lmp_in,
-                                                 box,
-                                                 coordinates,
-                                                 )
-                efs = (ff_dic['energy'], ff_dic['forces'], ff_dic['stress'])
-                #print('debug evaluate_ff_single', ff_dic['energy'])
-                res = obj_from_efs(efs,
-                                   ref_dic,
-                                   e_offset,
-                                   E_only,
-                                   self.e_coef,
-                                   self.f_coef,
-                                   self.s_coef,
-                                   obj,
-                                  )
-                if obj == 'MSE':
-                    total_obj += res
-                else:
-                    ([e1, e2], [f1, f2], [s1, s2]) = res
-                    eng_arr[0].append(e1)
-                    eng_arr[1].append(e2)
-                    force_arr[0].extend(f1)
-                    force_arr[1].extend(f2)
-                    stress_arr[0].extend(s1)
-                    stress_arr[1].extend(s2)
-        else:
-            #parallel process
-            N_cycle = int(np.ceil(len(ref_dics)/self.ncpu))
-            args_list = []
-            for i in range(self.ncpu):
-                folder = self.get_label(i)
-                id1 = i*N_cycle
-                id2 = min([id1+N_cycle, len(ref_dics)])
-                #print(i, id1, id2, len(ref_dics))
-                os.makedirs(folder, exist_ok=True)
-                args_list.append((ref_dics[id1:id2],
-                                  lmp_strucs[id1:id2],
-                                  lmp_dats[id1:id2],
-                                  lmp_in,
-                                  e_offset,
-                                  E_only,
-                                  self.natoms_per_unit,
-                                  self.e_coef,
-                                  self.f_coef,
-                                  self.s_coef,
-                                  folder,
-                                  obj,
-                                  ))
-
-            with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
-                results = [executor.submit(evaluate_ff_par, *p) for p in args_list]
-                for result in results:
-                    if obj == 'MSE':
-                        total_obj += result.result()
-                        #print(result.result())
-                    else:
-                        #([e1, e2], [f1, f2], [s1, s2]) = result.result()
-                        (engs, forces, stresses) = result.result()
-                        eng_arr[0].extend(engs[0])
-                        eng_arr[1].extend(engs[1])
-                        force_arr[0].extend(forces[0])
-                        force_arr[1].extend(forces[1])
-                        stress_arr[0].extend(stresses[0])
-                        stress_arr[1].extend(stresses[1])
-        os.chdir(pwd)
-
-        if obj == 'R2':
-            #np.savetxt('3.txt', eng_arr[0]); np.savetxt('4.txt', eng_arr[1])
-            total_obj -= self.e_coef * compute_r2(eng_arr[0], eng_arr[1])
-            total_obj -= self.f_coef * compute_r2(force_arr[0], force_arr[1])
-            total_obj -= self.s_coef * compute_r2(stress_arr[0], stress_arr[1])
-
-        return total_obj
-
-
+    def prepare_atoms(self,ref_dic):
+        structure = Atoms(numbers=ref_dic['numbers'],
+                          positions=ref_dic['position'],
+                          cell=ref_dic['lattice'],
+                          pbc=[1, 1, 1])
+        structure = reset_lammps_cell(structure)
+        return structure.cell.cellpar(), structure.get_positions()
+  
     def get_opt_dict(self, terms=['vdW'], values=None, parameters=None):
         """
         Get the opt_dict as an input for optimization
@@ -1179,6 +1133,8 @@ class ForceFieldParametersBase:
             folder = f"cpu0{i}"
         return folder
 
+    def run_lammps_evaluation(self, lmp_strucs, numMols, options, lmp_dats, lmp_in, box, coordinates):
+        return self.evaluate_ff_single(lmp_strucs, numMols, options, lmp_dats, lmp_in, box, coordinates)
 
     def evaluate_multi_references(self, ref_dics, parameters, max_E, max_dE):
         """
@@ -1201,24 +1157,12 @@ class ForceFieldParametersBase:
 
         if self.ncpu == 1:
             for i, ref_dic in enumerate(ref_dics):
-                #structure = ref_dic['structure']
-                structure = Atoms(numbers = ref_dic['numbers'],
-                                  positions = ref_dic['position'],
-                                  cell = ref_dic['lattice'],
-                                  pbc = [1, 1, 1])
+               
                 options = ref_dic['options']
                 numMols = ref_dic['numMols']
-                structure = reset_lammps_cell(structure)
-                box = structure.cell.cellpar()
-                coordinates = structure.get_positions()
+                box, coordinates = self.prepare_atoms(ref_dic)
 
-                ff_dic = self.evaluate_ff_single(lmp_strucs[i],
-                                                 numMols,
-                                                 options,
-                                                 lmp_dats[i],
-                                                 lmp_in,
-                                                 box,
-                                                 coordinates)
+                ff_dic = self.run_lammps_evaluation(lmp_strucs[i], numMols, options, lmp_dats[i], lmp_in, box, coordinates)
 
                 e1 = ff_dic['energy']/ff_dic['replicate']
                 e2 = ref_dic['energy']/ff_dic['replicate']
@@ -1256,40 +1200,32 @@ class ForceFieldParametersBase:
                                   max_E,
                                   max_dE))
 
-            with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
-                results = [executor.submit(evaluate_ff_error_par, *p) for p in args_list]
-                for result in results:
-                    res = result.result()
-                    ff_eng.extend(res[0])
-                    if len(res[1]) > 0: ff_force.extend(res[1])
-                    if len(res[2]) > 0: ff_stress.extend(res[2])
-                    ref_eng.extend(res[3])
-                    if len(res[4]) > 0: ref_force.extend(res[4])
-                    if len(res[5]) > 0: ref_stress.extend(res[5])
+            # Parallel execution using multiprocessing
+            with multiprocessing.get_context("spawn").Pool(processes=self.ncpu) as pool:
+                results = pool.map(parallel_worker_eval, args_list)
 
-        ff_eng = np.array(ff_eng).flatten()
-        ff_force = np.array(ff_force).flatten()
-        ff_stress = np.array(ff_stress)
-
-        ref_eng = np.array(ref_eng).flatten()
-        ref_force = np.array(ref_force).flatten()
-        ref_stress = np.array(ref_stress)
-
-        mse_eng = np.sqrt(np.mean((ff_eng-ref_eng)**2))
-        mse_for = np.sqrt(np.mean((ff_force-ref_force)**2))
-        mse_str = np.sqrt(np.mean((ff_stress-ref_stress)**2))
-        #print(ff_eng, ref_eng)
-        r2_eng = compute_r2(ff_eng, ref_eng)
-        r2_for = compute_r2(ff_force, ref_force)
-        r2_str = compute_r2(ff_stress, ref_stress)
-
+            for res in results:
+                #res = result.result()
+                ff_eng.extend(res[0])
+                if len(res[1]) > 0: ff_force.extend(res[1])
+                if len(res[2]) > 0: ff_stress.extend(res[2])
+                ref_eng.extend(res[3])
+                if len(res[4]) > 0: ref_force.extend(res[4])
+                if len(res[5]) > 0: ref_stress.extend(res[5])
+        
+        # Convert lists to numpy arrays
+        ff_eng, ff_force, ff_stress = map(np.array, [ff_eng, ff_force, ff_stress])
+        ref_eng, ref_force, ref_stress = map(np.array, [ref_eng, ref_force, ref_stress])
+    
+        # Compute RMSE and R² scores
+        mse_values = [np.sqrt(np.mean((ff - ref) ** 2)) if len(ff) > 0 else 0 for ff, ref in zip((ff_eng, ff_force, ff_stress), (ref_eng, ref_force, ref_stress))]
+        r2_values = [compute_r2(ff, ref) if len(ff) > 0 else 0 for ff, ref in zip((ff_eng, ff_force, ff_stress), (ref_eng, ref_force, ref_stress))]
+    
         ff_values = (ff_eng, ff_force, ff_stress)
         ref_values = (ref_eng, ref_force, ref_stress)
-        rmse_values = (mse_eng, mse_for, mse_str)
-        r2_values = (r2_eng, r2_for, r2_str)
-
-        return ff_values, ref_values, rmse_values, r2_values
-
+    
+        return ff_values, ref_values, mse_values, r2_values
+        
 
     def _plot_ff_parameters(self, ax, params, term='bond-1', width=0.35):
         """
@@ -1418,7 +1354,7 @@ class ForceFieldParametersBase:
         label2 = '{:s}. Forces ({:d})\n'.format(label, len(ff_force))
         label2 += 'Unit: [eV/A]\n'
         label2 += 'RMSE: {:.4f}\n'.format(mse_for)
-        label2 += 'R2:   {:.4f}'.format(r2_for)
+        label2 += 'R2:   {:.4f}'.format(r2_for.mean())
 
         label3 = '{:s}. Stress ({:d})\n'.format(label, len(ff_stress))
         label3 += 'Unit: [GPa]\n'
@@ -1445,7 +1381,9 @@ class ForceFieldParametersBase:
                     'min_values': (ff_eng.min(), ref_eng.min()),
                    }
         return axes, err_dict
-
+def objective_function_wrapper(x, obj_fun, ref_dics, parameters0, e_offset, obj, ids, charges):
+    """Standalone function for parallel processing."""
+    return obj_fun(x, ref_dics, parameters0, e_offset, obj, ids, charges)
 
 class ForceFieldParameters(ForceFieldParametersBase):
     def __init__(self,
@@ -1605,86 +1543,61 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
     #@timeit
     def optimize_init(self, ref_dics, opt_dict, parameters0=None, obj='MSE'):
-
+        """
+        Initialize optimization by setting up parameters, bounds, and constraints.
+        """
+    
         if parameters0 is None:
-            #parameters0 = self.params_init.copy()
             offset, parameters0 = self.optimize_offset(ref_dics)
-            #print(parameters0); import sys; sys.exit()
         else:
-            assert(len(parameters0) == len(self.params_init))
+            assert len(parameters0) == len(self.params_init)
+    
         self.update_ff_parameters(parameters0)
-        #self.ff.set_lammps_in('lmp.in')
-
+    
         terms = list(opt_dict.keys())
-        # Move the charge term to the end
+    
+        # Move 'charge' term to the end if present
         if 'charge' in terms:
-            terms.pop(terms.index('charge'))
+            terms.remove('charge')
             terms.append('charge')
             charges = opt_dict['charge']
         else:
             charges = None
-
-        # Set up the input for optimization, including x, bounds, args
+    
+        # Prepare the input for optimization
         x = []
         ids = []
-
         e_offset = parameters0[-1]
+    
         for term in terms:
+            N = getattr(self, f'N_{term}', None)  # Get number of parameters for this term
+            if N is None:
+                raise ValueError(f"Unknown term {term}. Expected attribute N_{term}.")
+    
             if len(ids) > 0:
-                if term != 'charge':
-                    x.extend(opt_dict[term])
-                    ids.append(ids[-1] + len(opt_dict[term]))
-                else:
-                    x.extend([1.0])
+                x.extend(opt_dict[term])
+                ids.append(ids[-1] + N)  # Append cumulative sum
             else:
-                if term != 'charge':
-                    x.extend(opt_dict[term])
-                    ids.append(len(opt_dict[term]))
-                else:
-                    x.extend([1.0])
-
-        #print("Starting", x)
-        #x = [item for sublist in values for item in sublist]
+                x.extend(opt_dict[term])
+                ids.append(N)  # First term, just store N
+    
+        #Debugging to check correctness
+        print(f"DEBUG: Final ids list: {ids}")  
+        print(f"DEBUG: Terms: {terms}")
+        print(f"DEBUG: Expected charge range: {ids[-2]} to {ids[-1]}" if 'charge' in terms else "DEBUG: No charge term")
+    
         _, sub_bounds, _ = self.get_sub_parameters(parameters0, terms)
         bounds = [item for sublist in sub_bounds for item in sublist]
+    
+        # Create function arguments bundle
+        fun_args = (self, ref_dics, parameters0, e_offset, obj, ids, terms, charges)
+    
+        # Use `partial` to create a function that expects only `x`
+        obj_partial = partial(obj_fun, fun_args=fun_args)
+    
+        return x, bounds, obj_partial, fun_args
 
-        def obj_fun(x, ref_dics, parameters0, e_offset, ids, obj, charges=None):
-            """
-            Split the x into list
-            """
-            values = []
-            for i in range(len(ids)):
-                if i == 0:
-                    id1 = 0
-                else:
-                    id1 = ids[i-1]
-                values.append(x[id1:ids[i]])
-
-            # The last x value is the ratio of charge
-            #print(charges, x[-1])
-            if charges is not None:
-                values.append(x[-1] * charges)
-            #print(terms, values)
-            parameters = self.set_sub_parameters(values, terms, parameters0)
-            self.update_ff_parameters(parameters)
-            # Reset the lmp.in file
-            lmp_in = self.ff.get_lammps_in()
-            objective = self.get_objective(ref_dics, e_offset, lmp_in=lmp_in, obj=obj)
-            #print("Debugging", values[0][:5], objective)
-            return objective
-
-        # set call back function for debugging
-        def objective_function_wrapper(x, ref_dics, parameters0, e_offset, obj, ids, charges):
-            global last_function_value
-            last_function_value = obj_fun(x, ref_dics, parameters0, e_offset, obj, ids, charges)
-            return last_function_value
-
-        arg_lists = (ref_dics, parameters0, e_offset, ids, obj, charges)
-        # Actual optimization
-        print("Init obj", objective_function_wrapper(x, *arg_lists))#; import sys; sys.exit()
-
-        return x, bounds, objective_function_wrapper, arg_lists
-
+        
     def optimize_post(self, x, ids, charges):
         # Rearrange the optimized parameters to the list of values
         #ids = fun_args[-2]
@@ -1695,69 +1608,71 @@ class ForceFieldParameters(ForceFieldParametersBase):
             else:
                 id1 = ids[i-1]
             values.append(x[id1:ids[i]])
-
         # The last x value is the ratio of charge
         if charges is not None:
-            values.append(x[-1]*charges)
-
-        return values
-
-
-    def optimize_global(self, ref_dics, opt_dict, parameters0=None,
-                        steps=100, obj='MSE', t0=100, alpha=0.99):
+            try:
+                charges= np.array(charges,dtype=np.float64)
+            except ValueError as e:
+                values.append(x[-1] * charges)
+                #print(f"ERROR: Cannot convert `charges` to float. Current value: {charges}")
+                raise e  
+        return values  
+    
+    def optimize_global(self, ref_dics, opt_dict, parameters0=None, steps=100, obj='MSE', t0=100, alpha=0.99):
         """
-        FF parameters' optimization using the simulated annealing algorithm
-        Todo, test new interface, add temp scheduling
-
-        Args:
-            ref_dics (dict): reference data dictionary
-            opt_dict (dict): optimization terms and values
-            parameters0 (array): initial full parameters
-            steps (int): optimization steps
-            obj (str): 'MSE' or 'R2'
-            t0 (float): initial temp
-            alpha (float): cooling rate
-        Returns:
-            The optimized values
+        Simulated annealing optimization with batch parallel objective function evaluation.
         """
-        from copy import deepcopy
-
         x, bounds, obj_fun, fun_args = self.optimize_init(ref_dics, opt_dict, parameters0, obj)
+        bounds = np.array(bounds)  # Convert bounds to NumPy array for faster operations
         t = t0
         current_x = x
-        current_fun = obj_fun(current_x, *fun_args)
+        # Use `partial` correctly before entering multiprocessing
+        obj_partial = partial(obj_fun, fun_args=fun_args)
+        
+        # First function evaluation
+        current_fun = obj_partial(current_x)  
         best_x, best_fun = current_x, current_fun
+    
+        # Optimize batch size
+        batch_size = min(self.ncpu, len(bounds))  
+        candidate_xs = np.tile(current_x, (batch_size, 1))  # Generate multiple candidate solutions
 
-        for i in range(steps):
-            # Generate a candidate solution
-            candidate_x = current_x.copy()
-            for j in range(len(bounds)):
-                lb, ub = bounds[j][0], bounds[j][1]
-                candidate_x[j] += 0.02 * np.random.uniform(-1, 1) * (lb-ub)
-                if candidate_x[j] > ub:
-                    candidate_x[j] = ub
-                elif candidate_x[j] < lb:
-                    candidate_x[j] = lb
-            candidate_fun = obj_fun(candidate_x, *fun_args)
-
-            # Update best fun if necessary
-            if candidate_fun < best_fun:
-                best_x, best_fun = candidate_x.copy(), deepcopy(candidate_fun)
-
-            # Accept the solution with probability
-            if np.random.random() < np.exp((current_fun - candidate_fun)/t):
-                current_x, current_fun = candidate_x, candidate_fun
-
-            t *= alpha
-            if self.verbose and i % 10 == 0:
-                print("Step {:4d} {:5.2f} {:.4f} {:.4f}".format(i, t, candidate_fun, current_fun))#, current_x)
-        print("Best results after {:d} steps: {:.4f}".format(steps, best_fun))
-        #print("Best fun", obj_fun(best_x, *fun_args))#; import sys; sys.exit()
-
+        with Pool(processes=self.ncpu) as pool:
+            for i in range(steps):
+                t_start = time.time()
+    
+                # Generate multiple candidates at once (batch processing)
+                perturbation = 0.02 * np.random.uniform(-1, 1, size=candidate_xs.shape) * (bounds[:, 1] - bounds[:, 0])
+                candidate_xs = np.clip(current_x + perturbation, bounds[:, 0], bounds[:, 1])
+    
+                # Evaluate all candidates in parallel
+                t_obj_start = time.time()
+                candidate_funs = pool.starmap(obj_partial, [(x,) for x in candidate_xs], chunksize=1)
+                t_obj_end = time.time()
+    
+                # Select the best candidate from batch
+                best_idx = np.argmin(candidate_funs)
+                candidate_x = candidate_xs[best_idx]
+                candidate_fun = candidate_funs[best_idx]
+    
+                # Accept the best candidate with probability
+                if candidate_fun < best_fun:
+                    best_x, best_fun = candidate_x.copy(), candidate_fun
+    
+                if np.random.random() < np.exp((current_fun - candidate_fun) / t):
+                    current_x, current_fun = candidate_x, candidate_fun
+    
+                t = t0 / (1 + 0.1 * i)  # Faster cooling
+    
+                if self.verbose and i % 10 == 0:
+                    print(f"Step {i:4d}, Temp: {t:.2f}, Best: {best_fun:.4f}, Candidate: {candidate_fun:.4f}")
+                    print(f"Step {i} took {time.time() - t_start:.4f} sec (Obj: {t_obj_end - t_obj_start:.4f} sec)")
+    
+        print(f"Best results after {steps} steps: {best_fun:.4f}")
+    
         values = self.optimize_post(best_x, fun_args[-3], fun_args[-1])
-        #print(values)
-
         return best_x, best_fun, values, steps
+    
 
 
     def optimize_local(self, ref_dics, opt_dict, parameters0=None, steps=100, obj='MSE'):
