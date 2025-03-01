@@ -6,7 +6,7 @@ import os
 import argparse
 from time import time
 import numpy as np
-
+import xml.etree.ElementTree as ET
 from pyxtal.optimize import WFS, DFS
 from pyxtal.representation import representation
 from pyocse.pso import PSO
@@ -110,11 +110,39 @@ if __name__ == "__main__":
         params.update_ff_parameters(params_opt)
         errs = params.plot_ff_results(f"performance_pso_{i+1}.png", ref_dics, [params_opt])
         params.export_parameters(f"{wdir}/parameters.xml", params_opt, errs[0])
-
+        def remove_duplicate_structures(xml_file):
+            tree = ET.parse(xml_file)
+            root = tree.getroot()
+            seen_structures = set()
+            unique_structures = []
+            
+            for structure in root.findall("structure"):
+                numbers = structure.find("numbers").text.strip()
+                lattice = structure.find("lattice").text.strip().replace("\n", " ")
+                position = structure.find("position").text.strip().replace("\n", " ")
+            
+                # Create a unique key for the structure
+                structure_key = (numbers, lattice, position)
+            
+                if structure_key not in seen_structures:
+                    seen_structures.add(structure_key)
+                    unique_structures.append(structure)
+            
+            # Clear original structures
+            root.clear()
+            
+            # Add only unique structures back
+            for structure in unique_structures:
+                root.append(structure)
+            
+            # Overwrite the original file
+            tree.write(xml_file)
+            
+            print(f"Overwritten {xml_file} with {len(unique_structures)} unique structures.")
         # Sampling to get the starting references.xml
         if i < max_iter - 1:
             fun = globals().get(options.algo)
             go = fun.load('sampling.xml')
             go.run()
-
+            remove_duplicate_structures(f"{wdir}/references.xml")
     print("Done.")
