@@ -26,7 +26,7 @@ with SuppressOutput():
         s_coef=1.0,
         style='openff',
         ref_evaluator='mace',
-        ncpu=4
+        ncpu=2
     )
 
 sys.stdout = sys.__stdout__  # Restore print output
@@ -38,10 +38,10 @@ if __name__ == "__main__":
 
     #p0, errors = params.load_parameters("dataset/parameters.xml")
     ref_dics = params.load_references("dataset/references.xml")
-    
+
     os.makedirs("ASP", exist_ok=True)
     os.chdir("ASP")
-    
+
     t0 = time()
     e_offset, params_opt = params.optimize_offset(ref_dics)#, p0)
     params.update_ff_parameters(params_opt)
@@ -67,7 +67,7 @@ if __name__ == "__main__":
                                                         t0=0.1,
                                                         steps=10)
             params_opt = params.set_sub_parameters(values, terms, params_opt)
-            
+
 
             opt_dict = params.get_opt_dict(terms, None, params_opt)
             x, fun, values, it = params.optimize_local(ref_dics,
@@ -77,10 +77,10 @@ if __name__ == "__main__":
                                                        steps=steps)
             params_opt = params.set_sub_parameters(values, terms, params_opt)
             _, params_opt = params.optimize_offset(ref_dics, params_opt)
-        
+
             t = (time() - t0) / 60
             print(f"\nFF optimization {t:.2f} min ", data)
-        
+
     #print(params.get_objective(ref_dics, e_offset))
     errs = params.plot_ff_results("performance_opt.png", ref_dics, [params_opt])
     params.plot_ff_parameters("parameters.png", [params_opt])
