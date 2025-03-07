@@ -132,11 +132,15 @@ def compute_ref_single(structure, numMol, calculator, natoms_per_unit,
                'numMols': numMol}
     structure.set_calculator(calculator)
     if steps > 0:
-        structure.set_constraint(FixSymmetry(structure))
-        ecf = UnitCellFilter(structure)
-        dyn = FIRE(ecf, a=0.1, logfile=logfile)
-        dyn.run(fmax=fmax, steps=steps)
-        structure.set_constraint()
+        if tag == 'minimum':
+            structure.set_constraint(FixSymmetry(structure))
+            ecf = UnitCellFilter(structure)
+            dyn = FIRE(ecf, a=0.1, logfile=logfile)
+            dyn.run(fmax=fmax, steps=steps)
+            structure.set_constraint()
+        else:
+            dyn = FIRE(structure, a=0.1, logfile=logfile)
+            dyn.run(fmax=fmax, steps=steps)
 
     if options[0]: # Energy
         ref_dic['energy'] = structure.get_potential_energy()
