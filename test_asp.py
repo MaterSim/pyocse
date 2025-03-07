@@ -26,7 +26,7 @@ with SuppressOutput():
         s_coef=1.0,
         style='openff',
         ref_evaluator='mace',
-        ncpu=2
+        ncpu=4,
     )
 
 sys.stdout = sys.__stdout__  # Restore print output

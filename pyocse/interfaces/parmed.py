@@ -369,10 +369,10 @@ class ParmEdStructure(Structure):
                 pbc=[1, 1, 1],
                 cell=box,
             )
-        charges = np.zeros(atoms.get_number_of_atoms())
+        charges = np.zeros(len(atoms))
         charges[0] = charge
         atoms.set_initial_charges(charges)
-        mmos = np.zeros(atoms.get_number_of_atoms())
+        mmos = np.zeros(len(atoms))
         mmos[0] = spin_multiplicity - 1
         atoms.set_initial_magnetic_moments(mmos)
         return atoms

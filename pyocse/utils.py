@@ -15,14 +15,15 @@ from xmltodict import unparse
 import xml.etree.ElementTree as ET
 
 def reset_lammps_cell(atoms0):
-    from ase.calculators.lammpslib import convert_cell
+    from ase.calculators.lammps.coordinatetransform import calc_rotated_cell
 
     atoms = atoms0.copy()
-    mat, coord_transform = convert_cell(atoms0.cell)
-    if coord_transform is not None:
-        pos = np.dot(atoms0.positions, coord_transform.T)
-        atoms.set_cell(mat.T)
-        atoms.set_positions(pos)
+    rotated_cell = calc_rotated_cell(atoms0.cell)
+    # Check if cell needs transformation
+    if not np.array_equal(atoms0.cell, rotated_cell):
+        rotation = np.linalg.solve(atoms0.cell.T, rotated_cell.T).T
+        atoms.positions = np.dot(atoms0.positions, rotation)
+        atoms.cell = rotated_cell
     return atoms
 
 @contextlib.contextmanager
