@@ -46,7 +46,6 @@ Write coor pdb name tmp.pdb
 * Energy(kcal): ?ener
 *
 
-
 """
 
 
