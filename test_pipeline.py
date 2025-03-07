@@ -6,7 +6,6 @@ import os
 import argparse
 from time import time
 import numpy as np
-import xml.etree.ElementTree as ET
 from pyxtal.optimize import WFS, DFS
 from pyxtal.representation import representation
 from pyocse.pso import PSO

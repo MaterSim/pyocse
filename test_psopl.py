@@ -1,5 +1,5 @@
 from pyocse.pso import PSO
-from pyocse.parameters import ForceFieldParametersBase, timeit
+from pyocse.parameters import ForceFieldParametersBase
 from time import time
 import os
 import numpy as np
@@ -88,7 +88,6 @@ def get_force_arr(input_file):
     return forces.flatten()
 
 def obj_function_par(para_values_list, template, ref_data, e_offset, ncpu):
-    scores = []
     if ncpu == 1:  # No parallelization
         return [obj_function(vals, template, ref_data, e_offset, obj="R2") for vals in para_values_list]
 
@@ -104,10 +103,10 @@ def obj_function_par(para_values_list, template, ref_data, e_offset, ncpu):
 
     return results
 
-@timeit
+#@timeit
 def obj_function(para_value, template, ref_data, e_offset, obj='R2'):
     """
-    Objective function for GAOptimizer.
+    Objective function for the PSO Optimizer.
 
     Args:
         para_value: 1D-Array of parameter values to evaluate.
@@ -117,8 +116,8 @@ def obj_function(para_value, template, ref_data, e_offset, obj='R2'):
     Returns:
         Objective score.
     """
-    process_id = os.getpid()
-    folder_name = f"process_{process_id}"
+    cpu_id = mp.current_process()._identity[0] if mp.current_process()._identity else 0
+    folder_name = f"cpu_{cpu_id}"
     os.makedirs(folder_name, exist_ok=True)
     lmp_in_file = os.path.join(folder_name, "lmp.in")
     strs = f"""
