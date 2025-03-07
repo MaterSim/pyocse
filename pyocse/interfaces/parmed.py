@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from io import StringIO
-from readline import parse_and_bind
 
 import numpy as np
 from openmm import unit as u
@@ -10,7 +9,7 @@ from openmm.app.forcefield import ForceField
 from parmed import ParameterSet, Structure
 from parmed.amber import AmberParm
 from parmed.modeller.residue import ResidueTemplateContainer
-from parmed.openmm import OpenMMParameterSet, energy_decomposition_system, load_topology
+from parmed.openmm import OpenMMParameterSet, load_topology
 from xmltodict import parse
 
 from pyocse.utils import dict_to_xmlstr, temporary_directory_change

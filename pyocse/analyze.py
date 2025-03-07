@@ -4,7 +4,7 @@ import networkx as nx
 import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms
-from pyxtal.molecule import pyxtal_molecule, compare_mol_connectivity, make_graph
+from pyxtal.molecule import pyxtal_molecule, make_graph
 from pymatgen.core.structure import Molecule
 
 def display_molecules(molecules, labels=None, size=(400,300)):
@@ -282,12 +282,12 @@ class lmp_mol:
         For the given xyz, compute the orientation
 
         Args:
-            mol_id: int
+            mol_id: index of the molecule
             ref: reference molecular positions in np.array
 
         Returns:
-            angles:
-            rmsd:
+            angles: euler angles
+            rmsd: root mean square deviation
         """
         if ref is None:
             xyz1 = self.p_mol.mol.cart_coords
@@ -414,4 +414,3 @@ if __name__ == '__main__':
     pool.map(func, dump_files)
     pool.close()
     pool.join()
-

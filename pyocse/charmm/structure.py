@@ -1,7 +1,7 @@
 from io import StringIO
 
 from parmed import Structure
-from parmed.charmm import CharmmCrdFile, CharmmParameterSet, CharmmPsfFile
+from parmed.charmm import CharmmParameterSet
 
 from pyocse.interfaces.parmed import ParmEdStructure
 from pyocse.utils import accurate_round

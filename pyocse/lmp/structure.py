@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
 from io import StringIO
-
 import numpy as np
 from parmed.topologyobjects import DihedralTypeList
-
 from pyocse.interfaces.parmed import ParmEdStructure
 
 

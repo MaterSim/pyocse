@@ -7,7 +7,6 @@ from pyocse.interchange_parmed import _to_parmed
 from pyocse.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
 from pyocse.interfaces.rdkit import smiles_to_ase_and_pmg
 from pyocse.lmp import LAMMPSStructure
-import numpy as np
 from pyxtal.constants import single_smiles
 import re
 

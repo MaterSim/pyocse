@@ -1,15 +1,10 @@
 #!/usr/bin/env python
-
-
 import numpy as np
 from openmm import LangevinMiddleIntegrator, NonbondedForce
 from openmm import unit as u
 from openmm.app import PME, PDBReporter, Simulation, StateDataReporter
 from pandas import read_csv
 from parmed.openmm import energy_decomposition_system
-
-from xtalmol.interfaces.parmed import ParmEdStructure
-
 
 class OPENMMCalculator:
     def __init__(self, struc, out_iter=10):

@@ -10,9 +10,6 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from rdkit import Chem
 from rdkit.Chem import AllChem, Descriptors
 
-from pyocse.utils import temporary_directory_change
-
-
 class RDKIT:
     """
     rdkit utilities

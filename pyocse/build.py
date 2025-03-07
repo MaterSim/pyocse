@@ -191,17 +191,13 @@ class Builder():
 
         struc.set_positions(positions)
         return struc
-        #self.xtal.write_
-        #self.xtal.write('t0.xyz', format='extxyz')
-
 
     def update_cell_parameters(self, T=300, P=1.0, folder='tmp'):
         """
-        update cell parameters according to the given temperature
+        Update cell parameters according to the given temperature
         """
         from lammps import lammps
         from ase.io import read
-        import os
 
         cwd = os.getcwd()
         if not os.path.exists(folder): os.makedirs(folder)
@@ -1108,4 +1104,3 @@ if __name__ == "__main__":
         if task['mode'] in ['bend', 'bend0']:
                 bu.lammps_slab.write_lammps(orthogonality=True)
                 bu.dump_slab_centers(bu.ase_slab, bu.ase_slab_mol_list, bord_ids, fix_ids)
-

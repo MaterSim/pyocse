@@ -1,9 +1,5 @@
-import contextlib
 import os
-import shutil
 import subprocess
-import numpy as np
-from pyocse.parameters import ForceFieldParameters
 import lammps_logfile
 
 def lammps_read(fname, sym_pos=-1):
@@ -66,10 +62,6 @@ class LMP:
         self.errorE = 1e+5
         self.error = False
         self.params = atom_info
-        # check charmm Executable
-        #if shutil.which(exe) is None:
-        #    raise BaseException(f"{exe} is not installed")
-        #else:
         self.exe = exe
         self.timeout = timeout
         self.debug = debug
