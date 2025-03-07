@@ -3,8 +3,10 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from multiprocessing import Pool
-import time
+import multiprocessing as mp
+mp.set_start_method('spawn', force=True)
 
+import time
 import numpy as np
 from scipy.optimize import minimize
 
@@ -892,7 +894,9 @@ class ForceFieldParametersBase:
                               max_E,
                               max_dE))
 
-        with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+        #with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+        with ProcessPoolExecutor(max_workers=self.ncpu,
+                                 mp_context=mp.get_context('spawn')) as executor:
             results = [executor.submit(evaluate_ff_error_par, *p) for p in args_list]
 
         for result in results:
@@ -1602,20 +1606,21 @@ class ForceFieldParameters(ForceFieldParametersBase):
                               tags[id1:id2],
                               steps[id1:id2]))
         ref_dics0 = []
-        with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+        with ProcessPoolExecutor(max_workers=self.ncpu,
+                                 mp_context=mp.get_context('spawn')) as executor:
             results = [executor.submit(compute_refs_par, *p) for p in args_list]
             for result in results:
                 res = result.result()
                 ref_dics0.extend(res)
         return ref_dics0
 
-    def add_references(self, xtals, ref_gs, N_max, steps=120, max_E=1000, min_dE=0.01):
+    def add_references(self, xtals, ref_gs, N_max, steps=50, max_E=1000, min_dE=0.01):
         """
         Add references from the given structure pool
 
         Args:
             xtals: list of pyxtal structures
-            ref_gs: list of ref_gs
+            ref_gs: list of ref_gs (10 numnbers of lattice parameters and energy)
             N_max: maximum number of references to add
             steps: number of steps for relaxation
             max_E: maximum energy for the reference
@@ -1789,7 +1794,8 @@ class ForceFieldParameters(ForceFieldParametersBase):
             id2 = min([id1+N_cycle, len(strs)])
             args_list.append((strs[id1:id2], smiles))
 
-        with ProcessPoolExecutor(max_workers=self.ncpu) as executor:
+        with ProcessPoolExecutor(max_workers=self.ncpu,
+                                 mp_context=mp.get_context('spawn')) as executor:
             results = [executor.submit(add_strucs_par, *p) for p in args_list]
             for result in results:
                 res = result.result()

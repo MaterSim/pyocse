@@ -33,7 +33,7 @@ if __name__ == "__main__":
                         help="Output directory, default is test.")
 
     options = parser.parse_args()
-
+    os.environ['OMP_NUM_THREADS'] = '1'  # Prevents conflicts in parallel execution
     # Enter the working directory
     os.makedirs(options.dir, exist_ok=True)
     os.chdir(options.dir)
