@@ -65,7 +65,7 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
 
         # Ignore the structures with unphysical energy values
         eng = eng / replicate + e_offset
-        eng_ref = ref_dic['energy'] / replicate 
+        eng_ref = ref_dic['energy'] / replicate
         e_diff = eng - eng_ref
         if eng < max_E and abs(e_diff) < max_dE:
             ff_eng.append(eng)
@@ -669,6 +669,10 @@ class ForceFieldParametersBase:
         (ff_values, ref_values, _, _) = results
         (ff_eng, _, _) = ff_values
         (ref_eng, _, _) = ref_values
+        # QZ: it is possible that very bad ff results may appear
+        # Needs to get rid of outlier data to enhance the stability
+        print("debug ref_eng", ref_eng)
+        print("debug ff_eng", ff_eng)
 
         x = parameters0[-1]
         if abs(x) < 1e-5:
@@ -866,7 +870,7 @@ class ForceFieldParametersBase:
     def run_lammps_evaluation(self, lmp_strucs, numMols, options, lmp_dats, lmp_in, box, coordinates):
         return self.evaluate_ff_single(lmp_strucs, numMols, options, lmp_dats, lmp_in, box, coordinates)
 
-    def evaluate_multi_references(self, ref_dics, parameters, max_E, max_dE):
+    def evaluate_multi_references(self, ref_dics, parameters, max_E=1000, max_dE=2.0):
         """
         Calculate scores for multiple reference structures
 
@@ -1022,7 +1026,7 @@ class ForceFieldParametersBase:
             return err_dics
 
     def _plot_ff_results(self, axes, parameters, ref_dics, label,
-            max_E=1000, max_dE=1000, size=None, verbose=False):
+            max_E=1000, max_dE=10, size=None, verbose=False):
         """
         Plot the results of FF prediction as compared to the references in
         terms of Energy, Force and Stress values.
@@ -1059,7 +1063,7 @@ class ForceFieldParametersBase:
         label2 += f'[eV/A]\nRMSE: {mse_for:.4f}\nR2:   {r2_for.mean():.4f}'
         print(label2)
 
-        label3 = f'{label:8s} Stress ({len(ff_stress)}\n)'
+        label3 = f'{label:8s} Stress ({len(ff_stress)})\n'
         label3 += f'[GPa]\nRMSE: {mse_str:.4f}\nR2:   {r2_str:.4f}'
         print(label3)
         print(f'\nMin_values: {ff_eng.min():.4f} {ref_eng.min():.4f}')
@@ -1616,7 +1620,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                 ref_dics0.extend(res)
         return ref_dics0
 
-    def add_references(self, xtals, ref_gs, N_max, steps=50, max_E=1000, min_dE=0.01, max_dE=2.5):
+    def add_references(self, xtals, ref_gs, N_max, steps=50, max_E=1000, min_dE=0.01, max_dE=1.5):
         """
         Add references from the given structure pool
 

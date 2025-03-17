@@ -82,6 +82,7 @@ class PSO:
         for i in range(self.num_particles):
             self.personal_best_scores[i] = scores[i]
             self.logger.info(f"{i} score: {scores[i]}")
+            print(f"{i} score: {scores[i]}")
 
         min_idx = np.argmin(self.personal_best_scores)
         self.global_best_position = self.personal_best_positions[min_idx]
@@ -156,6 +157,7 @@ class PSO:
                 self.personal_best_scores[i] = score
                 self.personal_best_positions[i] = self.positions[i]
                 self.logger.info(strs)
+                print(strs)
 
         min_idx = np.argmin(self.personal_best_scores)
         if self.personal_best_scores[min_idx] < self.global_best_score:
@@ -170,6 +172,7 @@ class PSO:
         for iteration in range(self.max_iter):
             self.pso_step()
             self.logger.info(f"Iter {iteration+1}/{self.max_iter}, Best Score: {self.global_best_score:.4f}")
+            print(f"Iter {iteration+1}/{self.max_iter}, Best Score: {self.global_best_score:.4f}")
         best_position = self.rescale(self.global_best_position)
         self.save()  # Save final optimized parameters
         return best_position, self.global_best_score
