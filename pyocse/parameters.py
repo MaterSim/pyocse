@@ -64,10 +64,12 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
         eng, force, stress = calc.express_evaluation()
 
         # Ignore the structures with unphysical energy values
-        e_diff = eng/replicate + e_offset - ref_dic['energy']/replicate
+        eng = eng / replicate + e_offset
+        eng_ref = ref_dic['energy'] / replicate 
+        e_diff = eng - eng_ref
         if eng < max_E and abs(e_diff) < max_dE:
-            ff_eng.append(eng/replicate + e_offset)
-            ref_eng.append(ref_dic['energy']/replicate)
+            ff_eng.append(eng)
+            ref_eng.append(eng_ref)
 
             if options[1]:
                 ff_force.extend(force.tolist())
@@ -77,7 +79,7 @@ def evaluate_ff_error_par(ref_dics, lmp_strucs, lmp_dats, lmp_in, e_offset,
                 ff_stress.extend(stress.tolist())
                 ref_stress.extend(ref_dic['stress'].tolist())
         else:
-            print('Neglect reference due to energy', eng, abs(e_diff), ref_dic['tag'])
+            print(f"Neglect {ref_dic['tag']}, E_ff: {eng:.3f}, E_ref: {eng_ref:.3f}")
     os.chdir(pwd)
     return (ff_eng, ff_force, ff_stress, ref_eng, ref_force, ref_stress)
 
@@ -149,7 +151,9 @@ def compute_ref_single(structure, numMol, calculator, natoms_per_unit,
     if options[2]:
         ref_dic['stress'] = structure.get_stress()
     structure.set_calculator() # reset calculator to None
-    print("#", tag, np.diag(structure.cell.array))
+    cell_arr = np.diag(structure.cell.array)
+    eng = ref_dic['energy'] / ref_dic['replicate']
+    print(f"# {tag} {eng:.4f} {cell_arr}")
 
     return ref_dic
 
@@ -789,7 +793,7 @@ class ForceFieldParametersBase:
         for ref_dic in ref_dics:
             if ref_dic['tag'] == 'minimum':
                 data = ref_dic['lattice'].flatten()
-                data = np.append(data, ref_dic['energy'])
+                data = np.append(data, ref_dic['energy']/ref_dic['replicate'])
                 gs.append(data)
         gs = np.array(gs)
         return gs
@@ -1047,25 +1051,19 @@ class ForceFieldParametersBase:
             print("ref_eng_values", ref_eng)
             print("ff_eng_values", ff_eng)
 
-        label1 = '{:s}. Energy ({:d})\n'.format(label, len(ff_eng))
-        label1 += 'Unit: [eV/mole]\n'
-        label1 += 'RMSE: {:.4f}\n'.format(mse_eng)
-        label1 += 'R2:   {:.4f}'.format(r2_eng)
+        label1 = f'{label:8s} Energy ({len(ff_eng)})\n'
+        label1 += f'[eV/mol]\nRMSE: {mse_eng:.4f}\nR2:   {r2_eng:.4f}'
+        print(label1)
 
-        label2 = '{:s}. Forces ({:d})\n'.format(label, len(ff_force))
-        label2 += 'Unit: [eV/A]\n'
-        label2 += 'RMSE: {:.4f}\n'.format(mse_for)
-        label2 += 'R2:   {:.4f}'.format(r2_for.mean())
+        label2 = f'{label:8s} Forces ({len(ff_force)})\n'
+        label2 += f'[eV/A]\nRMSE: {mse_for:.4f}\nR2:   {r2_for.mean():.4f}'
+        print(label2)
 
-        label3 = '{:s}. Stress ({:d})\n'.format(label, len(ff_stress))
-        label3 += 'Unit: [GPa]\n'
-        label3 += 'RMSE: {:.4f}\n'.format(mse_str)
-        label3 += 'R2:   {:.4f}'.format(r2_str)
-
-        print('\n', label1)
-        print('\n', label2)
-        print('\n', label3)
+        label3 = f'{label:8s} Stress ({len(ff_stress)}\n)'
+        label3 += f'[GPa]\nRMSE: {mse_str:.4f}\nR2:   {r2_str:.4f}'
+        print(label3)
         print(f'\nMin_values: {ff_eng.min():.4f} {ref_eng.min():.4f}')
+
         axes[0].scatter(ref_eng, ff_eng, s=size, label=label1)
         axes[1].scatter(ref_force, ff_force, s=size, label=label2)
         axes[2].scatter(ref_stress, ff_stress, s=size, label=label3)
@@ -1618,7 +1616,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                 ref_dics0.extend(res)
         return ref_dics0
 
-    def add_references(self, xtals, ref_gs, N_max, steps=50, max_E=1000, min_dE=0.01):
+    def add_references(self, xtals, ref_gs, N_max, steps=50, max_E=1000, min_dE=0.01, max_dE=2.5):
         """
         Add references from the given structure pool
 
@@ -1629,6 +1627,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
             steps: number of steps for relaxation
             max_E: maximum energy for the reference
             min_dE: minimum energy difference for the reference
+            max_dE: maximum energy difference w.r.t the minimum energy
 
         Returns:
             list of reference dics
@@ -1641,12 +1640,17 @@ class ForceFieldParameters(ForceFieldParametersBase):
                                             [[True, True, True]] * N,
                                             ['minimum'] * N,
                                             [steps] * N)
-        #print("debug ref_gs", ref_gs)
+        # ref_gs (cell 3*3 array, energy/replicate)
+        # QZ: to remove outliers by energy_median
+        E_values = [ref[-1] for ref in ref_gs] + [ref['energy']/ref['replicate'] for ref in ref_dics0]
+        E_median = np.median(E_values)
         ref_dics = []
         for ref_dic in ref_dics0:
-            ref_dics, ref_gs = self.process_ref_dic(ref_dic, ref_dics, ref_gs, max_E, min_dE)
-            if len(ref_dics) >= N_max:
-                break
+            eng = ref_dic['energy'] / ref_dic['replicate']
+            if abs(eng - E_median) < max_dE:
+                ref_dics, ref_gs = self.process_ref_dic(ref_dic, ref_dics, ref_gs, max_E, min_dE)
+                if len(ref_dics) >= N_max:
+                    break
         print(f'# Added references (minimum): {N}')
         return ref_dics
 
@@ -1665,7 +1669,9 @@ class ForceFieldParameters(ForceFieldParametersBase):
         strucs, numMols, options, tags, steps = [], [], [], [], []
         for ref_dic in refs:
             ref_structure = prepare_atoms(ref_dic)
-            print("# Reference", np.diag(ref_structure.cell.array), ref_dic['energy'])
+            cell_arr = np.diag(ref_structure.cell.array)
+            eng = ref_dic['energy'] / ref_dic['replicate']
+            print(f"# {ref_dic['tag']} {eng:.4f} {cell_arr}")
 
             # Generate elastic samples
             elastics = self.generate_elastics(ref_structure)
@@ -1680,7 +1686,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
             strucs.extend(vibs)
             numMols.extend([ref_dic['numMols']] * len(vibs))
             options.extend([[True, True, False]] * len(vibs))
-            tags.extend(['vibration'] * len(vibs))
+            tags.extend(['vibrate'] * len(vibs))
             steps.extend([0] * len(vibs))
 
         print(f'# Augmented references: {len(strucs)}')
@@ -1697,12 +1703,13 @@ class ForceFieldParameters(ForceFieldParametersBase):
             ref_dics: list of reference dics
             ref_gs: list of ground states
             max_E: maximum energy for the reference
-            min_dE: minimum energy difference for the reference
+            min_dE: minimum energy difference for the reference (default 0.05)
 
         Returns:
             Updated ref_dics, ref_gs
         """
-        data = np.append(ref_dic['lattice'].flatten(), ref_dic['energy'])
+        # print("# Process reference", ref_gs)
+        data = np.append(ref_dic['lattice'].flatten(), ref_dic['energy']/ref_dic['replicate'])
         e_ref = ref_dic['energy']
 
         # Here we only count the low energy structures with large energy difference
@@ -1745,7 +1752,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                 cell[ax, ax] *= coef
                 structure.set_cell(cell, scale_atoms=True)
                 elastics.append(structure)
-        print(f'# Get elastic configurations: {len(elastics)}/{len(coefs_strain)}')
+        #print(f'# Get elastic configurations: {len(elastics)}/{len(coefs_strain)}')
         return elastics
 
     def generate_vibs(self, ref_structure, dxs = [0.01, 0.02, 0.03], N_vibs=1):
@@ -1758,7 +1765,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
             dxs: list of perturbation
             N_vibs: number of vibrational samples to be generated
         """
-        print(f'# Get purturbation: {N_vibs} * {len(dxs)}')
+        #print(f'# Get purturbation: {N_vibs} * {len(dxs)}')
         pos0 = ref_structure.get_positions()
         vibs = []
         for dx in dxs:
