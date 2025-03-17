@@ -69,7 +69,7 @@ if __name__ == "__main__":
     go.save('sampling.xml')
 
     # Iterative optimization loop
-    max_iter = 2
+    max_iter = 10
     for i in range(max_iter):
         t0 = time()
 
@@ -78,8 +78,8 @@ if __name__ == "__main__":
         ref_dics = params.load_references(f"{wdir}/references.xml")
         ref_data = params.get_reference_data_and_mask(ref_dics)
         params.write_lmp_dat_from_ref_dics(ref_dics)
-        e_offset, params_opt = params.optimize_offset(ref_dics, p0)
-        obj_args = (TEMPLATE, ref_data, e_offset, options.ncpu)
+        params_opt = params.optimize_offset(ref_dics, parameters0=p0)
+        obj_args = (TEMPLATE, ref_data, params_opt[-1], options.ncpu)
 
         # PSO optimization
         print("PSO optimization starts...")
@@ -101,11 +101,11 @@ if __name__ == "__main__":
                             xml_file = "pso.xml")
         best_position, best_score = optimizer.optimize()
         t = (time() - t0) / 60
-        print(f"\nPSO is completed in {t:.2f} mins with Best Score: {best_score:.4f}")
+        print(f"\nPSO time usage: {t:.2f} mins with Best Score: {best_score:.4f}")
 
         # Update the parameters and export the results
         params_opt = params.set_sub_parameters(best_position, terms, params_opt)
-        e_offset, params_opt = params.optimize_offset(ref_dics, params_opt)
+        params_opt = params.optimize_offset(ref_dics, parameters0=params_opt)
         params.update_ff_parameters(params_opt)
         errs = params.plot_ff_results(f"performance_pso_{i+1}.png", ref_dics, [params_opt])
         params.export_parameters(f"{wdir}/parameters.xml", params_opt, errs[0])

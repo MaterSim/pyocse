@@ -295,11 +295,11 @@ if __name__ == "__main__":
     # Prepare lmp.dat at once
     params.write_lmp_dat_from_ref_dics(ref_dics)
     
-    e_offset, params_opt = params.optimize_offset(ref_dics, p0)
+    params_opt = params.optimize_offset(ref_dics, p0)
     params.update_ff_parameters(params_opt)
     errs = params.plot_ff_results("performance_init.png", ref_dics, [params_opt])
     t0 = time()
-    print("R2 objective", params.get_objective(ref_dics, e_offset, obj="R2"))
+    print("R2 objective", params.get_objective(ref_dics, params_opt[-1], obj="R2"))
     os.system("mv lmp.in lmp0.in")
     t1 = time(); print("computation from params", t1-t0)
 
@@ -365,13 +365,13 @@ if __name__ == "__main__":
     bounds = np.concatenate(sub_bounds)
 
     # Test obj_function
-    print(obj_function(vals, template, ref_data, e_offset, path='lmp.in', write=True))
+    print(obj_function(vals, template, ref_data, params_opt[-1], path='lmp.in', write=True))
     #import sys; sys.exit()
 
     # PSO-GA optimization
     optimizer = PSO(
             obj_function=obj_function_par,
-            obj_args=(template, ref_data, e_offset),
+            obj_args=(template, ref_data, params_opt[-1]),
             bounds=bounds,
             seed=vals.reshape((1, len(vals))),
             num_particles=96, 
@@ -388,9 +388,8 @@ if __name__ == "__main__":
     best_position, best_score = optimizer.optimize()
     
     params_opt = params.set_sub_parameters(best_position, terms, params_opt)
-    e_offset, params_opt = params.optimize_offset(ref_dics, params_opt)
+    params_opt = params.optimize_offset(ref_dics, parameters0=params_opt)
     params.update_ff_parameters(params_opt)
-    print("e_offset", e_offset)
     
     t = (time() - t0) / 60
     print(f"\nStepwise optimization for terms {terms} completed in {t:.2f} minutes.")
