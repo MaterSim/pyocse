@@ -9,6 +9,7 @@ mp.set_start_method('spawn', force=True)
 import time
 import numpy as np
 from scipy.optimize import minimize
+from scipy.stats import zscore
 
 from ase import Atoms
 from pyxtal import pyxtal
@@ -657,6 +658,7 @@ class ForceFieldParametersBase:
         Returns:
             The optimized e_offset value
         """
+
         if parameters0 is None:
             parameters0 = self.params_init.copy()
         else:
@@ -671,8 +673,13 @@ class ForceFieldParametersBase:
         (ref_eng, _, _) = ref_values
         # QZ: it is possible that very bad ff results may appear
         # Needs to get rid of outlier data to enhance the stability
-        print("debug ref_eng", ref_eng)
-        print("debug ff_eng", ff_eng)
+        # Find outliers using Z-score method
+        diffs = np.abs(ref_eng - ff_eng)
+        z_scores = np.abs(zscore(diffs))
+        masks = z_scores > 1.5
+        print(f"Find {len(ff_eng[masks])}/{len(ff_eng)} outliers using the zscore")
+        ref_eng = ref_eng[~masks]
+        ff_eng = ff_eng[~masks]
 
         x = parameters0[-1]
         if abs(x) < 1e-5:
