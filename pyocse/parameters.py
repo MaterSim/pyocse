@@ -1021,13 +1021,13 @@ class ForceFieldParametersBase:
 
         if len(params) == 1:
             if labels is None: labels = 'Opt'
-            if ff_dics is None: ff_dics, ref_dics = self.evaluate_ff_references(ref_dics, params[0])
+            if ff_dics is None: ff_dics, ref_dics = self.evaluate_ff_references(ref_dics, params[0], update=False)
             _, err_dic = self._plot_ff_results(axes, ref_dics, ff_dics, labels)
             err_dics.append(err_dic)
         else:
             if labels is None: labels = ['FF' + str(i) for i in range(len(params))]
             for i, param in enumerate(params):
-                if ff_dics is None: ff_dic, ref_dic = self.evaluate_ff_references(ref_dics, param)
+                if ff_dics is None: ff_dic, ref_dic = self.evaluate_ff_references(ref_dics, param, update=False)
                 _, err_dic = self._plot_ff_results(axes[i], ref_dic, ff_dic, labels[i])
                 err_dics.append(err_dic)
         plt.savefig(figname)
@@ -1123,6 +1123,46 @@ class ForceFieldParametersBase:
         if overwrite:
             tree.write(xml_file)
             print(f"Overwritten {xml_file} with {len(unique_structures)} structures.")
+
+    def cut_references_by_error(self, ref_dics, parameters, dE=3.0, FMSE=4.0, SMSE=5e-4):
+        """
+        Cut the list of references by error
+
+        Args:
+            ref_dics (list): all reference structures
+            parameters (array): ff parmater
+            dE (float): maximally allowed Energy error
+            FMSE (float): maximally allowed Force error
+            SMSE (float): maximally allowed Stress error
+        """
+        _ref_dics = []
+        self.update_ff_parameters(parameters)
+        for ref_dic in ref_dics:
+            self.ase_templates = {}
+            self.lmp_dat = {}
+            structure = prepare_atoms(ref_dic)
+            ff_dic = self.evaluate_ff_single(structure, ref_dic['numMols'])
+            e1 = ff_dic['energy'] / ff_dic['replicate'] + parameters[-1]
+            e2 = ref_dic['energy'] / ff_dic['replicate']
+            if abs(e1-e2) < dE:
+                add = True
+                if ref_dic['options'][1]:
+                    f1 = ff_dic['forces'].flatten()
+                    f2 = ref_dic['forces'].flatten()
+                    rmse = np.sum((f1-f2)**2) / len(f2)
+                    if rmse > FMSE:
+                        add = False
+                if add and ref_dic['options'][2]:
+                    s1 = ff_dic['stress']
+                    s2 = ref_dic['stress']
+                    rmse = np.sum((s1-s2)**2) / len(s2)
+                    if rmse > SMSE:
+                        add = False
+                if add:
+                    _ref_dics.append(ref_dic)
+
+        print("Removed {:d} entries by error".format(len(ref_dics)-len(_ref_dics)))
+        return _ref_dics
 
 class ForceFieldParameters(ForceFieldParametersBase):
     def __init__(self,
@@ -1650,47 +1690,6 @@ class ForceFieldParameters(ForceFieldParametersBase):
             aug_dics = self.augment_references(ref_dics, ref_gs, N_vibs)
             ref_dics.extend(aug_dics)
         return ref_dics
-
-    def cut_references_by_error(self, ref_dics, parameters, dE=3.0, FMSE=4.0, SMSE=5e-4):
-        """
-        Cut the list of references by error
-
-        Args:
-            ref_dics (list): all reference structures
-            parameters (array): ff parmater
-            dE (float): maximally allowed Energy error
-            FMSE (float): maximally allowed Force error
-            SMSE (float): maximally allowed Stress error
-        """
-        _ref_dics = []
-        self.update_ff_parameters(parameters)
-        for ref_dic in ref_dics:
-            self.ase_templates = {}
-            self.lmp_dat = {}
-            structure = prepare_atoms(ref_dic)
-            ff_dic = self.evaluate_ff_single(structure, ref_dic['numMols'])
-            e1 = ff_dic['energy'] / ff_dic['replicate'] + parameters[-1]
-            e2 = ref_dic['energy'] / ff_dic['replicate']
-            if abs(e1-e2) < dE:
-                add = True
-                if ref_dic['options'][1]:
-                    f1 = ff_dic['forces'].flatten()
-                    f2 = ref_dic['forces'].flatten()
-                    rmse = np.sum((f1-f2)**2) / len(f2)
-                    if rmse > FMSE:
-                        add = False
-                if add and ref_dic['options'][2]:
-                    s1 = ff_dic['stress']
-                    s2 = ref_dic['stress']
-                    rmse = np.sum((s1-s2)**2) / len(s2)
-                    if rmse > SMSE:
-                        add = False
-                if add:
-                    _ref_dics.append(ref_dic)
-
-        print("Removed {:d} entries by error".format(len(ref_dics)-len(_ref_dics)))
-        return _ref_dics
-
 
 if __name__ == "__main__":
     from pyxtal.db import database
