@@ -1,5 +1,5 @@
 #!/bin/sh -l
-#SBATCH --partition=Apus
+#SBATCH --partition=Apus #Orion
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=120:00:00
@@ -19,7 +19,8 @@ echo "Job ID: $SLURM_JOB_ID"
 #echo "CPUS_PER_TASK=${NCPU}, NSTEP=${NSTEP}, TAG=${TAG}"
 
 #python on_the_fly_asp.py -g 50 -p 100 -n 8 > log-test-otf
-python test_pso_para.py --ncpu 48 --steps 200 --dir PSO_2_200 --ref aspirin-simple/references.xml > log-pso-48-200
+#python test_pso_para.py --ncpu 48 --steps 200 --dir PSO_2_200 --ref aspirin-simple/references.xml > log-pso-48-200
+python -W "ignore" test_pipeline.py -p 96 -g 5 --pso 48 --steps 10 -n 48 --dir test -i 10
 
 # Usage
 # sbatch -J N10-S100 -c 10 myrun 100

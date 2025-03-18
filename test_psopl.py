@@ -119,7 +119,7 @@ def obj_function(para_value, template, ref_data, e_offset, obj='R2'):
     cpu_id = (mp.current_process()._identity[0] - 1) % mp.cpu_count() if mp.current_process()._identity else 0
     if cpu_id < 10:
         folder = f"cpu00{cpu_id}"
-    elif i < 100:
+    elif cpu_id < 100:
         folder = f"cpu0{cpu_id}"
     else:
         folder = f"cpu{cpu_id}"

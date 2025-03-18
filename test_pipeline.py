@@ -31,6 +31,8 @@ if __name__ == "__main__":
                         help="Number of particles for PSO, default is 10.")
     parser.add_argument("--dir", default="test",
                         help="Output directory, default is test.")
+    parser.add_argument("-i", "--iter", type=int, default=5,
+                        help="Number of iterations, default is 10.")
 
     options = parser.parse_args()
     os.environ['OMP_NUM_THREADS'] = '1'  # Prevents conflicts in parallel execution
@@ -69,13 +71,14 @@ if __name__ == "__main__":
     go.save('sampling.xml')
 
     # Iterative optimization loop
-    max_iter = 10
+    max_iter = options.iter
     for i in range(max_iter):
         t0 = time()
 
         # Prepare PSO inputs
         p0, _ = params.load_parameters(f"{wdir}/parameters.xml")
         ref_dics = params.load_references(f"{wdir}/references.xml")
+        ref_dics = params.cut_references_by_error(ref_dics, p0, dE=2.5, FMSE=2.5)
         ref_data = params.get_reference_data_and_mask(ref_dics)
         params.write_lmp_dat_from_ref_dics(ref_dics)
         params_opt = params.optimize_offset(ref_dics, parameters0=p0)
@@ -101,7 +104,7 @@ if __name__ == "__main__":
                             xml_file = "pso.xml")
         best_position, best_score = optimizer.optimize()
         t = (time() - t0) / 60
-        print(f"\nPSO time usage: {t:.2f} mins with Best Score: {best_score:.4f}")
+        print(f"\nPSO {len(ref_dics)} time usage: {t:.2f} mins with Best Score: {best_score:.4f}")
 
         # Update the parameters and export the results
         params_opt = params.set_sub_parameters(best_position, terms, params_opt)
