@@ -835,11 +835,11 @@ class ForceFieldParametersBase:
         A short utility to get the label for the folder.
         """
         if i < 10:
-            folder = f"cpu00{i}"
+            folder = f"par/cpu00{i}"
         elif i < 100:
-            folder = f"cpu0{i}"
+            folder = f"par/cpu0{i}"
         else:
-            folder = f"cpu{i}"
+            folder = f"par/cpu{i}"
         return folder
 
     def run_lammps_evaluation(self, lmp_strucs, numMols, options, lmp_dats, lmp_in, box, coordinates):
