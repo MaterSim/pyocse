@@ -363,7 +363,7 @@ class ForceFieldParametersBase:
 
         Args:
             parameters (list): input complete parameters
-            termss (list): selected terms ['vdW', 'bond', .etc]
+            terms (list): selected terms ['vdW', 'bond', .etc]
 
         Returns:
             sub_paras (list): list of sub_parameters
@@ -1163,6 +1163,66 @@ class ForceFieldParametersBase:
 
         print("Removed {:d} entries by error".format(len(ref_dics)-len(_ref_dics)))
         return _ref_dics
+    
+    def get_lmp_template(self): 
+        """
+        Get TEMPLATE by reading the order/length of parameters.xml.
+        Intended for LAMMPS
+
+        Returns:
+            template (dictionary): dictionary containing the LAMMPS template
+        """
+
+        template = {}
+        para_index = 0 # parameter index
+
+        # Bond
+        bond_index = 0
+        for molecule in self.ff.molecules:
+            for bond_type in molecule.bond_types:
+                template[f"bond_coeff {bond_index + 1}"] = [para_index, para_index + 1]
+                para_index += 2
+                bond_index += 1
+
+        # Angle
+        angle_index = 0
+        for molecule in self.ff.molecules:
+            for angle_type in molecule.angle_types:
+                template[f"angle_coeff {angle_index + 1}"] = [para_index, para_index + 1]
+                para_index += 2
+                angle_index += 1
+
+        # Proper (phi_k) # per=2, phase=180.000,  scee=1.200, scnb=2.000
+        dihedral_index = 0
+        for molecule in self.ff.molecules:
+            for dihedral_type in molecule.dihedral_types:
+                per = dihedral_type.per
+                phase = dihedral_type.phase
+                offset = 0 #dihedral_type.offset
+                template[f"dihedral_coeff {dihedral_index + 1}"] = [para_index, per, phase, offset]  # CHARMM default
+                para_index += 1
+                dihedral_index += 1
+
+        # nonbond vdW parameters (rmin, epsilon)
+        vdw_index = 0
+        for molecule in self.ff.molecules:
+            ps = molecule.get_parameterset_with_resname_as_prefix()
+            for atom_type in ps.atom_types.keys():
+                template[f"pair_coeff {vdw_index + 1} {vdw_index + 1}"] = [para_index, para_index + 1]
+                para_index += 2
+                vdw_index += 1
+
+        # mass
+        mass_index = 0
+        for molecule in self.ff.molecules:
+            for at in molecule.atoms:
+                mass = at.mass
+                template[f"mass {mass_index + 1}"] = mass
+                mass_index += 1
+
+        return template
+
+
 
 class ForceFieldParameters(ForceFieldParametersBase):
     def __init__(self,
@@ -1697,16 +1757,17 @@ if __name__ == "__main__":
     # db = database('../HT-OCSP/benchmarks/Si.db')
     db = database("../HT-OCSP/benchmarks/test.db")
     style = 'gaff' #'openff'
-    style = 'openff'
-    #xtal = db.get_pyxtal("ACSALA")
-    xtal = db.get_pyxtal("XATJOT") #"XAFQON")#
+    #style = 'openff'
+    xtal = db.get_pyxtal("ACSALA")
+    #xtal = db.get_pyxtal("XATJOT") #"XAFQON")#
     #xtal = db.get_pyxtal("KONTIQ09")
     smiles = [mol.smile for mol in xtal.molecules]
     assert smiles[0] is not None
     params = ForceFieldParameters(smiles, style=style, ncpu=2)
     #smiles[0] = '[Cl-]'
     print(params)
-    params0 = params.params_init.copy()
-    ase_with_ff = params.get_ase_charmm(params0)
-    ase_with_ff.write_charmmfiles(base='pyxtal')#, style=style)
-    ff_dic = params.evaluate_ff_single(xtal.to_ase(resort=False), xtal.numMols); print(ff_dic)
+    print(params.get_lmp_template())
+    #params0 = params.params_init.copy()
+    #ase_with_ff = params.get_ase_charmm(params0)
+    #ase_with_ff.write_charmmfiles(base='pyxtal')#, style=style)
+    #ff_dic = params.evaluate_ff_single(xtal.to_ase(resort=False), xtal.numMols); print(ff_dic)
