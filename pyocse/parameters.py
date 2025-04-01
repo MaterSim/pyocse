@@ -645,7 +645,7 @@ class ForceFieldParametersBase:
             parameters0 = self.params_init.copy()
         else:
             assert(len(parameters0) == len(self.params_init))
-
+        
         if ff_dics is None:
             ff_dics, ref_dics = self.evaluate_ff_references(ref_dics, parameters0)
 
@@ -685,6 +685,7 @@ class ForceFieldParametersBase:
             for key in ['rmse_values', 'r2_values', 'ff_style']:
                 if key in dics.keys():
                     errors[key] = dics[key]
+            #print("Loaded vdW values:", dics["vdW"])
             return np.array(parameters), errors
         else:
             raise ValueError("Unsupported file format")
@@ -699,6 +700,19 @@ class ForceFieldParametersBase:
         """
         if parameters is None: parameters = self.params_init.copy()
         opt_dict = self.get_opt_dict(self.terms, parameters=parameters)
+        # Clean vdW epsilons: replace near-zero with minimum value
+        if "vdW" in opt_dict:
+            vdw = opt_dict["vdW"]
+            new_vdw = []
+            for i in range(0, len(vdw), 2):
+                sig = vdw[i]
+                eps = vdw[i + 1]
+                if eps < 1e-6 or np.isnan(eps):
+                    eps = 0.01
+                if sig < 1e-6 or np.isnan(sig):
+                    sig = 2.5
+                new_vdw.extend([sig,eps])
+            opt_dict["vdW"] = new_vdw
 
         # Export reference data to file
         root = ET.Element('library')
@@ -1196,32 +1210,27 @@ class ForceFieldParametersBase:
         dihedral_index = 0
         for molecule in self.ff.molecules:
             for dihedral_type in molecule.dihedral_types:
-                per = dihedral_type.per
-                phase = dihedral_type.phase
+                per = int(dihedral_type.per)
+                phase = int(dihedral_type.phase)
                 offset = 0 #dihedral_type.offset
                 template[f"dihedral_coeff {dihedral_index + 1}"] = [para_index, per, phase, offset]  # CHARMM default
                 para_index += 1
                 dihedral_index += 1
 
         # nonbond vdW parameters (rmin, epsilon)
+        vdw_map = {}
+        mass_map = {}
         vdw_index = 0
         for molecule in self.ff.molecules:
             ps = molecule.get_parameterset_with_resname_as_prefix()
-            for atom_type in ps.atom_types.keys():
-                template[f"pair_coeff {vdw_index + 1} {vdw_index + 1}"] = [para_index, para_index + 1]
-                para_index += 2
-                vdw_index += 1
-
-        # mass
-        mass_index = 0
-        for molecule in self.ff.molecules:
-            for at in molecule.atoms:
-                mass = at.mass
-                template[f"mass {mass_index + 1}"] = mass
-                mass_index += 1
-
+            for name, atom_type in ps.atom_types.items():
+                if name not in vdw_map:
+                    template[f"pair_coeff {vdw_index + 1} {vdw_index + 1}"] = [para_index, para_index + 1]
+                    template[f"mass {vdw_index+1}"] = atom_type.mass
+                    vdw_map[name] = (vdw_index+1, para_index, para_index + 1)
+                    para_index += 2
+                    vdw_index += 1
         return template
-
 
 
 class ForceFieldParameters(ForceFieldParametersBase):
