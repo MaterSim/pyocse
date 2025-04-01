@@ -152,29 +152,13 @@ box tilt large
 # Read unique Atoms and Box for the current structure
 variable atomfile string structures/lmp_dat_${{index}}
 read_data ${{atomfile}} #add append
-
-mass 1  12.0107800 #U00C1
-mass 2  12.0107800 #U00C2
-mass 3  15.9994300 #U00O3
-mass 4  15.9994300 #U00O4
-mass 5  12.0107800 #U00C5
-mass 6  12.0107800 #U00C6
-mass 7  12.0107800 #U00C7
-mass 8  12.0107800 #U00C8
-mass 9  12.0107800 #U00C9
-mass 10  12.0107800 #U00C10
-mass 11  12.0107800 #U00C11
-mass 12  15.9994300 #U00O12
-mass 13  15.9994300 #U00O13
-mass 14   1.0079470 #U00H14
-mass 15   1.0079470 #U00H15
-mass 16   1.0079470 #U00H16
-mass 17   1.0079470 #U00H17
-mass 18   1.0079470 #U00H18
-mass 19   1.0079470 #U00H19
-mass 20   1.0079470 #U00H20
-mass 21   1.0079470 #U00H21
 """
+    # Dynamically add mass entries
+    for key in sorted(template):
+        if key.startswith("mass"):
+            atom_type = key.split()[1]
+            mass_val = template[key]
+            strs += f"mass {atom_type} {mass_val:.8f}\n"
 
     for key in template.keys():
         items = template[key]
@@ -251,59 +235,6 @@ variable fz atom fz
         score -= r2_score(forces1, forces0)
         score -= r2_score(stress1, stress0)
     return score
-
-# To be generated from params later
-TEMPLATE = {
-    "bond_coeff 1": [0, 1],
-    "bond_coeff 2": [2, 3],
-    "bond_coeff 3": [4, 5],
-    "bond_coeff 4": [6, 7],
-    "bond_coeff 5": [8, 9],
-    "bond_coeff 6": [10, 11],
-    "bond_coeff 7": [12, 13],
-    "bond_coeff 8": [14, 15],
-    "bond_coeff 9": [16, 17],
-    "bond_coeff 10": [18, 19],
-    "angle_coeff 1": [20, 21],
-    "angle_coeff 2": [22, 23],
-    "angle_coeff 3": [24, 25],
-    "angle_coeff 4": [26, 27],
-    "angle_coeff 5": [28, 29],
-    "angle_coeff 6": [30, 31],
-    "dihedral_coeff 1": [32, 2, 180, 0.0], #U00(C1-C2-O4-C5)
-    "dihedral_coeff 2": [33, 2, 180, 0.0], #U00(C2-O4-C5-C6,C2-O
-    "dihedral_coeff 3": [34, 1, 0, 0.0], #U00(O3-C2-C1-H14,O3-
-    "dihedral_coeff 4": [35, 2, 0, 0.0], #U00(O3-C2-C1-H14,O3-
-    "dihedral_coeff 5": [36, 3, 180, 0.0], #U00(O3-C2-C1-H14,O3-
-    "dihedral_coeff 6": [37, 3, 0, 0.0], #U00(O4-C2-C1-H14,O4-
-    "dihedral_coeff 7": [38, 2, 180, 0.0], #U00(O4-C5-C6-C7,O4-C
-    "dihedral_coeff 8": [39, 2, 180, 0.0], #U00(C5-C10-C11-O12,C
-    "dihedral_coeff 9": [40, 2, 180, 0.0], #U00(C10-C11-O13-H21)
-    "dihedral_coeff 10": [41, 2, 180, 0.0], #U00(O12-C11-O13-H21)
-    "dihedral_coeff 11": [42, 1, 0, 0.0], #U00(O12-C11-O13-H21)
-    "pair_coeff 1 1":   [44, 43],
-    "pair_coeff 2 2":   [46, 45],
-    "pair_coeff 3 3":   [48, 47],
-    "pair_coeff 4 4":   [50, 49],
-    "pair_coeff 5 5":   [52, 51],
-    "pair_coeff 6 6":   [54, 53],
-    "pair_coeff 7 7":   [56, 55],
-    "pair_coeff 8 8":   [58, 57],
-    "pair_coeff 9 9":   [60, 59],
-    "pair_coeff 10 10": [62, 61],
-    "pair_coeff 11 11": [64, 63],
-    "pair_coeff 12 12": [66, 65],
-    "pair_coeff 13 13": [68, 67],
-    "pair_coeff 14 14": [70, 69],
-    "pair_coeff 15 15": [72, 71],
-    "pair_coeff 16 16": [74, 73],
-    "pair_coeff 17 17": [76, 75],
-    "pair_coeff 18 18": [78, 77],
-    "pair_coeff 19 19": [80, 79],
-    "pair_coeff 20 20": [82, 81],
-    "pair_coeff 21 21": [84, 83],
-    }
-
 
 
 if __name__ == "__main__":
