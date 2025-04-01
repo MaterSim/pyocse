@@ -8,9 +8,8 @@ from time import time
 import numpy as np
 from pyxtal.optimize import WFS, DFS
 from pyxtal.representation import representation
-from pyocse.pso import PSO
+from pyocse.pso import PSO,obj_function_par
 from pyocse.parameters import ForceFieldParametersBase
-from test_psopl import obj_function_par
 
 from multiprocessing import set_start_method
 set_start_method('spawn', force=True)
@@ -43,11 +42,11 @@ if __name__ == "__main__":
     # Define the molecule and the space group
     np.random.seed(1234)
     smiles, sg, wdir = "CC(=O)OC1=CC=CC=C1C(=O)O", [14], f"Sampling-{options.algo}"
-    x = "81 11.38  6.48 11.24  96.9 1 0 0.23 0.43 0.03  -44.6   25.0   34.4  -76.6   -5.2  171.5 0"
+    #x = "81 11.38  6.48 11.24  96.9 1 0 0.23 0.43 0.03  -44.6   25.0   34.4  -76.6   -5.2  171.5 0"
     style = 'openff'
-    rep = representation.from_string(x, [smiles])
-    xtal = rep.to_pyxtal()
-    pmg = xtal.to_pymatgen()
+    #rep = representation.from_string(x, [smiles])
+    #xtal = rep.to_pyxtal()
+    #pmg = xtal.to_pymatgen()
     terms = ["bond", "angle", "proper", "vdW"]
 
     # FF parameters
