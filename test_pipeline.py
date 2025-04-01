@@ -10,7 +10,7 @@ from pyxtal.optimize import WFS, DFS
 from pyxtal.representation import representation
 from pyocse.pso import PSO
 from pyocse.parameters import ForceFieldParametersBase
-from test_psopl import TEMPLATE, obj_function_par
+from test_psopl import obj_function_par
 
 from multiprocessing import set_start_method
 set_start_method('spawn', force=True)
@@ -82,6 +82,7 @@ if __name__ == "__main__":
         ref_data = params.get_reference_data_and_mask(ref_dics)
         params.write_lmp_dat_from_ref_dics(ref_dics)
         params_opt = params.optimize_offset(ref_dics, parameters0=p0)
+        TEMPLATE = params.get_lmp_template()
         obj_args = (TEMPLATE, ref_data, params_opt[-1], options.ncpu)
 
         # PSO optimization
