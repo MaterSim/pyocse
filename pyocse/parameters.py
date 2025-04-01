@@ -17,6 +17,7 @@ from pyxtal.util import prettify
 from pyocse.utils import reset_lammps_cell, compute_r2, xml_to_dict_list, array_to_string
 from pyocse.lmp import LAMMPSCalculator
 
+
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -319,7 +320,6 @@ class ForceFieldParametersBase:
         # Improper (phi_k) #  per=2, phase=180.000,  scee=1.200, scnb=2.000>
         # for molecule in self.ff.molecules:
         # for improper_type in ps.improper_periodic_types.keys():
-
         # nonbond vdW parameters (rmin, epsilon)
         # sigma is related to rmin * 2**(-1/6) * 2
         for molecule in self.ff.molecules:
@@ -327,6 +327,14 @@ class ForceFieldParametersBase:
             for atom_type in ps.atom_types.keys():
                 rmin = ps.atom_types[atom_type].rmin
                 epsilon = ps.atom_types[atom_type].epsilon
+        
+                # If epsilon is zero, set default values
+                if epsilon == 0:
+                    epsilon = 0.01
+                    sigma = 2.5
+                    # rmin is defined as: sigma / (2 * 2**(-1/6))
+                    rmin = sigma / (2 * 2**(-1/6))
+        
                 params.append(rmin)
                 params.append(epsilon)
                 bounds.append((rmin + deltas[0], rmin + deltas[1]))
@@ -643,6 +651,7 @@ class ForceFieldParametersBase:
 
         if parameters0 is None:
             parameters0 = self.params_init.copy()
+            #print("parameters for optimization:",parameters0)
         else:
             assert(len(parameters0) == len(self.params_init))
         
