@@ -1,52 +1,47 @@
 """
 Pipeline to simultaneously optimize the force field parameters and the crystal structure
-$ python -W "ignore" test_pipeline.py -p 5 -g 2 --pso 12 --steps 5
+$ python -W "ignore" test_pipeline.py --steps 5
 """
-import os
-import argparse
+import os, argparse
 from time import time
 import numpy as np
 from pyxtal.optimize import WFS, DFS
-from pyxtal.representation import representation
-from pyocse.pso import PSO,obj_function_par
+from pyocse.pso import PSO, obj_function_par
 from pyocse.parameters import ForceFieldParametersBase
-
 from multiprocessing import set_start_method
 set_start_method('spawn', force=True)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-g", "--gen", dest="gen", type=int, default=10,
-                        help="Number of generation, optional")
-    parser.add_argument("-p", "--pop", dest="pop", type=int, default=100,
-                        help="Population size, optional")
+    parser.add_argument("-g", "--gen", dest="gen", type=int, default=2,
+                        help="Number of generation, default is 2.")
+    parser.add_argument("-p", "--pop", dest="pop", type=int, default=5,
+                        help="Population size, dfault is 5.")
     parser.add_argument("-n", "--ncpu", dest="ncpu", type=int, default=1,
-                        help="cpu number, optional")
+                        help="cpu number, default is 1.")
     parser.add_argument("-a", "--algo", dest="algo", default='WFS',
                         help="algorithm, default: WFS")
     parser.add_argument("--steps", type=int, default=10,
                         help="Number of steps for PSO, default is 10.")
-    parser.add_argument("--pso", type=int, default=10,
-                        help="Number of particles for PSO, default is 10.")
+    parser.add_argument("--pso", type=int, default=4,
+                        help="Number of particles for PSO, default is 4.")
     parser.add_argument("--dir", default="test",
                         help="Output directory, default is test.")
     parser.add_argument("-i", "--iter", type=int, default=5,
-                        help="Number of iterations, default is 10.")
+                        help="Number of CSP/PSO iterations, default is 5.")
 
     options = parser.parse_args()
     os.environ['OMP_NUM_THREADS'] = '1'  # Prevents conflicts in parallel execution
+
     # Enter the working directory
     os.makedirs(options.dir, exist_ok=True)
     os.chdir(options.dir)
 
     # Define the molecule and the space group
     np.random.seed(1234)
-    smiles, sg, wdir = "CC(=O)OC1=CC=CC=C1C(=O)O", [14], f"Sampling-{options.algo}"
-    #x = "81 11.38  6.48 11.24  96.9 1 0 0.23 0.43 0.03  -44.6   25.0   34.4  -76.6   -5.2  171.5 0"
+    #smiles, sg, wdir = "CC(=O)OC1=CC=CC=C1C(=O)O", [14], f"Sampling-{options.algo}"
+    tag, smiles, sg, wdir = 'coumarin', "C1=CC(=CC(=C1)O)O", [14], f"Sampling-{options.algo}"
     style = 'openff'
-    #rep = representation.from_string(x, [smiles])
-    #xtal = rep.to_pyxtal()
-    #pmg = xtal.to_pymatgen()
     terms = ["bond", "angle", "proper", "vdW"]
 
     # FF parameters
@@ -59,7 +54,7 @@ if __name__ == "__main__":
     # Sampling to get the starting references.xml
     fun = globals().get(options.algo)
     go = fun(smiles, wdir, sg,
-             tag = 'aspirin',
+             tag = tag,
              N_gen = options.gen,
              N_pop = options.pop,
              N_cpu = options.ncpu,

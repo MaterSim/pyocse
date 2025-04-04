@@ -32,8 +32,6 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-       #"parmed>=3.4.3",
-       #"openmm>=7.6.0",
        "toml",
        "xmltodict"
     ],
