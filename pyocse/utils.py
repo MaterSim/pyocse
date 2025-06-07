@@ -124,32 +124,29 @@ def find_outliers(data, threshold=3):
     outliers = np.where(distances > threshold)
     return outliers
 
-def compute_r2(y_true, y_pred):
+def compute_r2(y_true, y_pred, weights=1.0):
     """
-    Compute the R-squared coefficient for the actual and predicted values.
+    Weighted R² metric generalized for arbitrary weights.
 
     Args:
-        y_true: The actual values.
-        y_pred: The predicted values by the regression model.
+        y_true (np.array): Reference values.
+        y_pred (np.array): Predicted values.
+        weights (np.array or float): Weights array or scalar.
 
-    Return:
-        The R-squared value.
+    Returns:
+        float: Weighted R² score.
     """
-    if len(y_true) > 0:
-        # Calculate the mean of actual values
-        mean_y_true = sum(y_true) / len(y_true)
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
 
-        # Total sum of squares (SST)
-        sst = sum((y_i - mean_y_true) ** 2 for y_i in y_true)
+    if np.isscalar(weights):
+        weights = np.ones_like(y_true) * weights
 
-        # Residual sum of squares (SSE)
-        sse = sum((y_true_i - y_pred_i) ** 2 for y_true_i, y_pred_i in zip(y_true, y_pred))
+    weighted_mean_true = np.average(y_true, weights=weights)
+    ss_tot = np.sum(weights * (y_true - weighted_mean_true) ** 2)
+    ss_res = np.sum(weights * (y_true - y_pred) ** 2)
 
-        # R-squared
-        r2 = 1 - (sse / sst)
-    else:
-        r2 = 0
-
+    r2 = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0.0
     return r2
 
 def string_to_array(s, dtype=float):
