@@ -1,7 +1,6 @@
 import os
 import xml.etree.ElementTree as ET
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 from multiprocessing import Pool
 import multiprocessing as mp
 mp.set_start_method('spawn', force=True)
@@ -694,7 +693,7 @@ class ForceFieldParametersBase:
             for key in ['rmse_values', 'r2_values', 'ff_style']:
                 if key in dics.keys():
                     errors[key] = dics[key]
-            #print("Loaded vdW values:", dics["vdW"])
+            print("Loaded the force field parameters from", filename)
             return np.array(parameters), errors
         else:
             raise ValueError("Unsupported file format")
@@ -784,7 +783,7 @@ class ForceFieldParametersBase:
                 pass
         else:
             raise ValueError("Unsupported file format")
-
+        print(f"Loaded {len(ref_dics)} reference structures from {filename}")
         return ref_dics
 
     def get_gs_from_ref_dics(self, ref_dics):
@@ -1228,7 +1227,6 @@ class ForceFieldParametersBase:
 
         # nonbond vdW parameters (rmin, epsilon)
         vdw_map = {}
-        mass_map = {}
         vdw_index = 0
         for molecule in self.ff.molecules:
             ps = molecule.get_parameterset_with_resname_as_prefix()
@@ -1270,7 +1268,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
         if ref_evaluator is not None:
             self.set_ref_evaluator(ref_evaluator)
 
-    def set_ref_evaluator(self, ref_evaluator, device='cpu'):
+    def set_ref_evaluator(self, ref_evaluator='mace', device='cpu'):
         """
         Set the reference evaluator
         """
@@ -1559,15 +1557,21 @@ class ForceFieldParameters(ForceFieldParametersBase):
                               tags[id1:id2],
                               steps[id1:id2]))
         ref_dics0 = []
-        with ProcessPoolExecutor(max_workers=self.ncpu,
-                                 mp_context=mp.get_context('spawn')) as executor:
-            results = [executor.submit(compute_refs_par, *p) for p in args_list]
-            for result in results:
-                res = result.result()
+        if self.ncpu == 1:
+            # Single process
+            for p in args_list:
+                res = compute_refs_par(*p)
                 ref_dics0.extend(res)
+        else:
+            with ProcessPoolExecutor(max_workers=self.ncpu,
+                                 mp_context=mp.get_context('spawn')) as executor:
+                results = [executor.submit(compute_refs_par, *p) for p in args_list]
+                for result in results:
+                    res = result.result()
+                    ref_dics0.extend(res)
         return ref_dics0
 
-    def add_references(self, xtals, ref_gs, N_max, steps=50, max_E=1000, min_dE=0.01, max_dE=1.5):
+    def add_references(self, xtals, ref_gs=[], N_max=None, steps=50, max_E=1000, min_dE=0.01, max_dE=1.5):
         """
         Add references from the given structure pool
 
@@ -1583,6 +1587,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
         Returns:
             list of reference dics
         """
+        if N_max is None: N_max = len(xtals) * 20
         numMols = [xtal.numMols for xtal in xtals]
         strucs = [xtal.to_ase(resort=False) for xtal in xtals]
         N = len(strucs)
@@ -1592,7 +1597,6 @@ class ForceFieldParameters(ForceFieldParametersBase):
                                             ['minimum'] * N,
                                             [steps] * N)
         # ref_gs (cell 3*3 array, energy/replicate)
-        # QZ: to remove outliers by energy_median
         E_values = [ref[-1] for ref in ref_gs] + [ref['energy']/ref['replicate'] for ref in ref_dics0]
         E_median = np.median(E_values)
         ref_dics = []
@@ -1605,13 +1609,12 @@ class ForceFieldParameters(ForceFieldParametersBase):
         print(f'# Added references (minimum): {N}')
         return ref_dics
 
-    def augment_references(self, refs, N_vibs=1, N_ela_relax=20):
+    def augment_references(self, refs, N_ela_relax=20):
         """
         Add augmented references to the reference pool
 
         Args:
             ref_dics: list of reference dics
-            N_vibs (int): number of vibrational samples to be generated
             N_ela_relax (int): number of steps for relaxation of elastic samples
         Returns:
             list of reference dics
@@ -1633,7 +1636,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
             steps.extend([N_ela_relax] * len(elastics))
 
             # Generate vibrational samples
-            vibs = self.generate_vibs(ref_structure, N_vibs=N_vibs)
+            vibs = self.generate_vibs(ref_structure)
             strucs.extend(vibs)
             numMols.extend([ref_dic['numMols']] * len(vibs))
             options.extend([[True, True, False]] * len(vibs))
@@ -1677,7 +1680,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                     ref_gs = np.append(ref_gs, [data], axis=0)
                     add = True
                 else:
-                    print("Duplicated structure found", data)
+                    print("Duplicate structure found", data)
 
                 if add:
                     #print("Add reference", ref_dic['tag'], ref_dic['energy'])
@@ -1706,7 +1709,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
         #print(f'# Get elastic configurations: {len(elastics)}/{len(coefs_strain)}')
         return elastics
 
-    def generate_vibs(self, ref_structure, dxs = [0.01, 0.02, 0.03], N_vibs=1):
+    def generate_vibs(self, ref_structure, dxs = [0.01, 0.02, 0.03]):
         """
         Generate vibration configurations.
         The main idea is to perturb the atomic positions with various dx values
@@ -1714,9 +1717,8 @@ class ForceFieldParameters(ForceFieldParametersBase):
         Args:
             ref_structure: reference structure in ASE format
             dxs: list of perturbation
-            N_vibs: number of vibrational samples to be generated
         """
-        #print(f'# Get purturbation: {N_vibs} * {len(dxs)}')
+        #print(f'# Get purturbation: {len(dxs)}')
         pos0 = ref_structure.get_positions()
         vibs = []
         for dx in dxs:
@@ -1727,7 +1729,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
             vibs.append(structure)
         return vibs
 
-    def add_references_from_cif(self, cif, ref_gs=[], N_max=10, augment=True, steps=120, N_vibs=3):
+    def add_references_from_cif(self, cif, ref_gs=[], N_max=10, augment=True, steps=120):
         """
         Add multiple references to training
 
@@ -1736,7 +1738,6 @@ class ForceFieldParameters(ForceFieldParametersBase):
             N_max (int): maximum number of references
             augment (bool): augment the references or not
             steps (int): number of steps for relaxation
-            N_vibs (int): number of vibrational samples to be generated
 
         Returns:
             list of reference dics
@@ -1746,14 +1747,14 @@ class ForceFieldParameters(ForceFieldParametersBase):
         N_max = min([N_max, len(strs)])
         ids = np.argsort(engs)[:N_max]
         strs = [strs[id] for id in ids if engs[id] < 1000] # sort by eng
-        smiles = [smi+'.smi' for smi in self.ff.smiles]
+        smiles = [smi + '.smi' for smi in self.ff.smiles]
         xtals = []
 
         N_cycle = int(np.ceil(len(strs)/self.ncpu))
         args_list = []
         for i in range(self.ncpu):
             id1 = i * N_cycle
-            id2 = min([id1+N_cycle, len(strs)])
+            id2 = min([id1 + N_cycle, len(strs)])
             args_list.append((strs[id1:id2], smiles))
 
         with ProcessPoolExecutor(max_workers=self.ncpu,
@@ -1765,7 +1766,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
 
         ref_dics = self.add_references(xtals, ref_gs, N_max, steps, 1000)
         if augment:
-            aug_dics = self.augment_references(ref_dics, ref_gs, N_vibs)
+            aug_dics = self.augment_references(ref_dics, ref_gs)
             ref_dics.extend(aug_dics)
         return ref_dics
 
