@@ -1044,12 +1044,14 @@ class ForceFieldParametersBase:
 
         if len(params) == 1:
             if labels is None: labels = 'Opt'
-            for ref_dic in ref_dics:
+            for i, ref_dic in enumerate(ref_dics):
                 if ff_dics is None:
-                    ff_dics, ref_dic = self.evaluate_ff_references(ref_dic,
+                    ff_dic, ref_dic = self.evaluate_ff_references(ref_dic,
                                                                 params[0],
                                                                 update=False)
-                _, err_dic = self._plot_ff_results(axes, ref_dic, ff_dics, labels)
+                else:
+                    ff_dic = ff_dics[i]
+                _, err_dic = self._plot_ff_results(axes, ref_dic, ff_dic, labels)
                 err_dics.append(err_dic)
         else:
             if labels is None: labels = ['FF' + str(i) for i in range(len(params))]
@@ -1107,9 +1109,9 @@ class ForceFieldParametersBase:
         else:
             label1 = label2 = label3 = None
 
-        axes[0].scatter(ref_eng, ff_eng, s=size, label=label1)
-        axes[1].scatter(ref_force, ff_force, s=size, label=label2)
-        axes[2].scatter(ref_stress, ff_stress, s=size, label=label3)
+        axes[0].scatter(ref_eng, ff_eng, s=size, label=label1, alpha=0.5)
+        axes[1].scatter(ref_force, ff_force, s=size, label=label2, alpha=0.5)
+        axes[2].scatter(ref_stress, ff_stress, s=size, label=label3, alpha=0.5)
 
         for ax in axes:
             ax.set_xlabel('Reference')
