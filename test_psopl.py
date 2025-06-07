@@ -1,12 +1,13 @@
+import os
+from time import time
+import multiprocessing as mp
+import numpy as np
+
 from pyocse.pso import PSO
 from pyocse.parameters import ForceFieldParametersBase
-from time import time
-import os
-import numpy as np
+from pyocse.utils import compute_r2
 from ase import units
 from lammps import PyLammps
-import numpy as np
-import multiprocessing as mp
 
 # Helper: Initialize global variables for each worker
 def worker_init(shared_template, shared_ref_data, shared_e_offset):
@@ -63,12 +64,6 @@ def execute_lammps(lmp_in, N_strucs):
     engs = np.array(engs)
     return engs, forces, stresses
 
-
-def r2_score(y_true, y_pred):
-    tss = np.sum((y_true - np.mean(y_true))**2)
-    rss = np.sum((y_true - y_pred)**2)
-    r2 = 1 - (rss / tss)
-    return r2
 
 def get_force_arr(input_file):
     # Initialize lists to store data
@@ -225,22 +220,28 @@ variable fz atom fz
     forces1 = forces1[mask_f]
     stress1 = stress1[mask_s]
 
+    # Calculate exponential weighting (lower energies get higher weight)
+    engs_shifted = engs0 - np.min(engs0)  # shift minimum energy to zero
+    weights = np.exp(-alpha * engs_shifted)
+    weights /= np.sum(weights) # normalize weights
+
     # Calculate objective score
     if obj == "MSE":
         score = e_coef * np.sum((engs1 - engs0) **2)
         score += f_coef * np.sum((forces1 - forces0) ** 2)
         score += s_coef * np.sum((stress1 - stress0) ** 2)
     elif obj == "R2":
-        score = -r2_score(engs1, engs0)#; print('eng', engs1, engs0, r2_score(engs1, engs0))
-        score -= r2_score(forces1, forces0)
-        score -= r2_score(stress1, stress0)
+        energy_r2 = compute_r2(engs1, engs0, weights)
+        force_r2 = compute_r2(forces1, forces0)  # usually forces not weighted by energies
+        stress_r2 = compute_r2(stress1, stress0)  # same for stress
+        score = -(energy_r2 + force_r2 + stress_r2)
     return score
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ncpu", type=int, default=10,
+    parser.add_argument("--ncpu", type=int, default=8,
                         help="Number of CPUs to use, default is 5.")
     parser.add_argument("--steps", type=int, default=30,
                         help="Number of opt steps, default is 30.")
@@ -268,23 +269,26 @@ if __name__ == "__main__":
     )
 
     p0, errors = params.load_parameters(args.params)
-    ref_dics = params.load_references(args.ref)[:20]
+    ref_dics = params.load_references(args.ref)
 
     os.makedirs(args.dir, exist_ok=True)
     os.chdir(args.dir)
+    ref_dics = params.cut_references_by_error(ref_dics, p0, dE=2.5, FMSE=2.5)
+    ref_data = params.get_reference_data_and_mask(ref_dics)
 
     # Prepare lmp.dat at once
     params.write_lmp_dat_from_ref_dics(ref_dics)
+    params_opt = params.optimize_offset(ref_dics, p0)
+    TEMPLATE = params.get_lmp_template()
 
-    e_offset, params_opt = params.optimize_offset(ref_dics, p0)
     params.update_ff_parameters(params_opt)
-    errs = params.plot_ff_results("performance_init.png", ref_dics, [params_opt])
+    errs = params.plot_ff_results("performance_init.png",
+                                  ref_dics,
+                                  [params_opt])
     t0 = time()
     print("R2 objective", params.get_objective(ref_dics, e_offset, obj="R2"))
     os.system("mv lmp.in lmp0.in")
     t1 = time(); print("computation from params", t1-t0)
-
-    ref_data = params.get_reference_data_and_mask(ref_dics)
 
     # Stepwise optimization loop
     terms = ["bond", "angle", "proper", "vdW"]
@@ -305,12 +309,11 @@ if __name__ == "__main__":
             cognitive=0.2,
             social=0.8,
             max_iter=5, #args.steps,
-            ncpu=5, #args.ncpu,
+            ncpu=args.ncpu,
             xml_file="pso.xml",
     )
 
     best_position, best_score = optimizer.optimize()
-
     params_opt = params.set_sub_parameters(best_position, terms, params_opt)
     e_offset, params_opt = params.optimize_offset(ref_dics, params_opt)
     params.update_ff_parameters(params_opt)
