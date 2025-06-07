@@ -326,14 +326,14 @@ class ForceFieldParametersBase:
             for atom_type in ps.atom_types.keys():
                 rmin = ps.atom_types[atom_type].rmin
                 epsilon = ps.atom_types[atom_type].epsilon
-        
+
                 # If epsilon is zero, set default values
                 if epsilon == 0:
                     epsilon = 0.01
                     sigma = 2.5
                     # rmin is defined as: sigma / (2 * 2**(-1/6))
                     rmin = sigma / (2 * 2**(-1/6))
-        
+
                 params.append(rmin)
                 params.append(epsilon)
                 bounds.append((rmin + deltas[0], rmin + deltas[1]))
@@ -496,10 +496,6 @@ class ForceFieldParametersBase:
         lmp_strucs, lmp_dats = [], []
         for ref_dic in ref_dics:
             numMols = ref_dic['numMols']
-            #structure = Atoms(numbers = ref_dic['numbers'],
-            #                  positions = ref_dic['position'],
-            #                  cell = ref_dic['lattice'],
-            #                  pbc = [1, 1, 1])
             structure = prepare_atoms(ref_dic)
 
             lmp_struc, lmp_dat = self.get_lmp_input_from_structure(structure, numMols)
@@ -653,7 +649,7 @@ class ForceFieldParametersBase:
             #print("parameters for optimization:",parameters0)
         else:
             assert(len(parameters0) == len(self.params_init))
-        
+
         if ff_dics is None:
             ff_dics, ref_dics = self.evaluate_ff_references(ref_dics, parameters0)
 
@@ -884,7 +880,7 @@ class ForceFieldParametersBase:
         lmp_in = self.ff.get_lammps_in()
 
         #parallel process
-        N_cycle = int(np.ceil(len(ref_dics)/self.ncpu))
+        N_cycle = int(np.ceil(len(ref_dics) / self.ncpu))
         args_list = []
         for i in range(self.ncpu):
             folder = self.get_label(i)
@@ -897,14 +893,19 @@ class ForceFieldParametersBase:
                               lmp_in,
                               offset_opt,
                               folder))
+        if self.ncpu == 1:
+            # Single process
+            for p in args_list:
+                res = evaluate_ff_dic_par(*p)
+                ff_dics.extend(res)
+        else:
+            with ProcessPoolExecutor(max_workers=self.ncpu,
+                                     mp_context=mp.get_context('spawn')) as executor:
+                results = [executor.submit(evaluate_ff_dic_par, *p) for p in args_list]
 
-        with ProcessPoolExecutor(max_workers=self.ncpu,
-                                 mp_context=mp.get_context('spawn')) as executor:
-            results = [executor.submit(evaluate_ff_dic_par, *p) for p in args_list]
-
-        for result in results:
-            ff_dic = result.result()
-            ff_dics.extend(ff_dic)
+            for result in results:
+                ff_dic = result.result()
+                ff_dics.extend(ff_dic)
 
         if update:
             masks = self.get_outliers(ff_dics, ref_dics)
@@ -1043,13 +1044,20 @@ class ForceFieldParametersBase:
 
         if len(params) == 1:
             if labels is None: labels = 'Opt'
-            if ff_dics is None: ff_dics, ref_dics = self.evaluate_ff_references(ref_dics, params[0], update=False)
-            _, err_dic = self._plot_ff_results(axes, ref_dics, ff_dics, labels)
-            err_dics.append(err_dic)
+            for ref_dic in ref_dics:
+                if ff_dics is None:
+                    ff_dics, ref_dic = self.evaluate_ff_references(ref_dic,
+                                                                params[0],
+                                                                update=False)
+                _, err_dic = self._plot_ff_results(axes, ref_dic, ff_dics, labels)
+                err_dics.append(err_dic)
         else:
             if labels is None: labels = ['FF' + str(i) for i in range(len(params))]
             for i, param in enumerate(params):
-                if ff_dics is None: ff_dic, ref_dic = self.evaluate_ff_references(ref_dics, param, update=False)
+                if ff_dics is None:
+                    ff_dic, ref_dic = self.evaluate_ff_references(ref_dics,
+                                                                  param,
+                                                                  update=False)
                 _, err_dic = self._plot_ff_results(axes[i], ref_dic, ff_dic, labels[i])
                 err_dics.append(err_dic)
         plt.savefig(figname)
@@ -1083,18 +1091,21 @@ class ForceFieldParametersBase:
             print("ref_eng_values", ref_eng)
             print("ff_eng_values", ff_eng)
 
-        label1 = f'{label:8s} Energy ({len(ff_eng)})\n'
-        label1 += f'RMSE: {mse_eng:.4f} eV/mol\nR2:   {r2_eng:.4f}'
-        print(label1)
+        if len(ff_eng) > 1:
+            label1 = f'{label:8s} Energy ({len(ff_eng)})\n'
+            label1 += f'RMSE: {mse_eng:.4f} eV/mol\nR2:   {r2_eng:.4f}'
+            print(label1)
 
-        label2 = f'{label:8s} Forces ({len(ff_force)})\n'
-        label2 += f'RMSE: {mse_for:.4f} eV/A\nR2:   {r2_for.mean():.4f}'
-        print(label2)
+            label2 = f'{label:8s} Forces ({len(ff_force)})\n'
+            label2 += f'RMSE: {mse_for:.4f} eV/A\nR2:   {r2_for.mean():.4f}'
+            print(label2)
 
-        label3 = f'{label:8s} Stress ({len(ff_stress)})\n'
-        label3 += f'RMSE: {mse_str:.4f} GPa\nR2:   {r2_str:.4f}'
-        print(label3)
-        print(f'\nMin_values: {ff_eng.min():.4f} {ref_eng.min():.4f}')
+            label3 = f'{label:8s} Stress ({len(ff_stress)})\n'
+            label3 += f'RMSE: {mse_str:.4f} GPa\nR2:   {r2_str:.4f}'
+            print(label3)
+            print(f'\nMin_values: {ff_eng.min():.4f} {ref_eng.min():.4f}')
+        else:
+            label1 = label2 = label3 = None
 
         axes[0].scatter(ref_eng, ff_eng, s=size, label=label1)
         axes[1].scatter(ref_force, ff_force, s=size, label=label2)
@@ -1185,8 +1196,8 @@ class ForceFieldParametersBase:
 
         print("Removed {:d} entries by error".format(len(ref_dics)-len(_ref_dics)))
         return _ref_dics
-    
-    def get_lmp_template(self): 
+
+    def get_lmp_template(self):
         """
         Get TEMPLATE by reading the order/length of parameters.xml.
         Intended for LAMMPS
