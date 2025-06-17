@@ -113,7 +113,10 @@ class RDKIT:
         if optimize:
             rmslist = []
             AllChem.AlignMolConformers(rdkit_mol, RMSlist=rmslist)
-            AllChem.MMFFOptimizeMolecule(rdkit_mol, maxIters=maxIters)
+            if any(atom.GetSymbol() in ['P', 'p'] for atom in rdkit_mol.GetAtoms()):
+                AllChem.UFFOptimizeMolecule(rdkit_mol, maxIters=maxIters)
+            else:
+                AllChem.MMFFOptimizeMolecule(rdkit_mol, maxIters=maxIters)
         positions = rdkit_mol.GetConformers()
 
         return [RDKIT.to_ase(rdkit_mol, conformer.GetPositions()) for conformer in positions]
