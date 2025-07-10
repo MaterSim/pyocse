@@ -1,4 +1,4 @@
-from ost.build import Builder
+from pyocse.build import Builder
 from pyxtal.db import database
 import numpy as np
 import os
@@ -6,6 +6,7 @@ import os
 # Set the crystal model
 data = [
         ('ANLINB02', [[0,1,0], [0,0,1], [1,0,0]]),
+        #('VEWSIC', [[0,1,0], [0,0,1], [1,0,0]]),
        ]
 
 #style = 'gaff' #'openff'
@@ -19,15 +20,15 @@ angle = 30
 for d in data:
     (code, matrix) = d
     matrix = np.array(matrix)
-    print(code)
     xtal = db.get_pyxtal(code)
     smiles = [mol.smile for mol in xtal.molecules]
+    print(code, smiles)
     bu = Builder(smiles=smiles, style=style)
 
     #for angle in (0, 30, 60, 90):
     # Get the relaxed cell paramters?
     bu.set_xtal(xtal, para_min=10.0)
-    
+
     # Apply the orientation
     print('Unitcell:   ', bu.xtal.get_cell_lengths_and_angles())
     print('Matrix:     ', matrix)
