@@ -30,6 +30,9 @@ class forcefield:
         self.dics = []
         self.smiles = smiles
         self.chargemethod = chargemethod
+        if max([len(s) for s in smiles]) > 180:
+            self.chargemethod = "gasteiger" #chargemethod
+            print("Use gasteiger chargemethod to save time for large molecule")
         self.workdir = workdir
         self.set_partial_charges()
 

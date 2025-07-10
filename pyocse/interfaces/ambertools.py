@@ -51,7 +51,7 @@ def run_antechamber(
     if atomtyping == "gaff":
         acopts += f" -at {atomtyping}"
         cmd = f"antechamber -i {mol_init} -fi {suffix} -o {labeledmol2} -fo mol2 {acopts} > /dev/null"
-        #print("========", cmd)
+        print("========", cmd)
         procrun(cmd)
     elif atomtyping == "skip" and suffix == "mol2":
         labeledmol2 = mol_init
