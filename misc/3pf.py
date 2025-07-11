@@ -1,4 +1,4 @@
-from ost.build import Builder
+from pyocse.build import Builder
 from pyxtal.db import database
 import numpy as np
 import os
@@ -27,7 +27,7 @@ for d in data:
 
     # Get the relaxed cell paramters?
     bu.set_xtal(xtal)#, para_min=10.0)
-    
+
     # Apply the orientation
     print('Unitcell:   ', bu.xtal.get_cell_lengths_and_angles())
     print('Matrix:     ', matrix)
@@ -45,16 +45,16 @@ for d in data:
             'indenter_distance': 100.0, # A
             'inderter_t_hold': 300.0,   # ps, timesteps
             'indenter_rate': 1e-4,      # A/fs (10 m/s)
-            'dump_steps': 50,           # 
+            'dump_steps': 50,           #
             'indenter_radius': 30.0,   # Ang
             'indenter_buffer': 10.0,   # Ang
             'indenter_k': 1.0,         # eV/^3
             'timerelax': 1000,       # fs
            }
 
-    bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix, dim=dim, 
+    bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix, dim=dim,
                 vacuum = task['indenter_distance'] * 1.2, #make sure the z-axis is long
-                separation = task['indenter_radius'] + task['indenter_buffer'], 
+                separation = task['indenter_radius'] + task['indenter_buffer'],
                 orthogonality=True)
     print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
 
@@ -67,10 +67,10 @@ for d in data:
     zs = bu.ase_slab.get_positions()[:,2]
     z_max, z_min = zs.max(), zs.min()
     task['indenter_height'] = z_max + task['indenter_radius']
-    task['border_mols'] = bord_ids   # List of [a, b] 
-    task['fix_mols'] = fix_ids       # Number of molecules per column 
+    task['border_mols'] = bord_ids   # List of [a, b]
+    task['fix_mols'] = fix_ids       # Number of molecules per column
     bu.set_task(task)
-    
+
     # update x_lo/x_hi
     if not task['pbc_x']:
         padding = [100, 0, 0]

@@ -23,7 +23,7 @@ for d in data:
     xtal = db.get_pyxtal(code)
     smiles = [mol.smile for mol in xtal.molecules]
     print(code, smiles)
-    bu = Builder(smiles=smiles, style=style)
+    bu = Builder(smiles=smiles, style='gaff', style)
 
     #for angle in (0, 30, 60, 90):
     # Get the relaxed cell paramters?

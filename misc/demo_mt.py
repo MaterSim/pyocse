@@ -1,4 +1,4 @@
-from ost.build import Builder
+from pyocse.build import Builder
 from pyxtal.db import database
 import numpy as np
 import os, sys
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # 2.3 launch lammps simulation
     # 2.4 Generate output files (Stress/Strain curve, Energy/Strain curve)
     # 2.5 Optional, scripts to generate movies
-    
+
     # Set the crystal model
     (options, args) = parser.parse_args()
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     code = options.code
     _lmpcmd = options.lammps.split('srun')[-1]
 
-    # in case the lmpcmd has -n 
+    # in case the lmpcmd has -n
     if len(_lmpcmd.split('-n')) > 1:
         tmps = _lmpcmd.split('-n')
         _lmpcmd = tmps[0] + ' '.join(tmps[-1].split()[1:])
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     smiles = [mol.smile for mol in xtal.molecules]
     bu = Builder(smiles=smiles, style=style)
     bu.set_xtal(xtal, para_min=10.0)
-    
+
     # Setup Directory
     compound_folder = 'MT-' + code + '-' + style
     if not os.path.exists(compound_folder): os.makedirs(compound_folder)
@@ -74,12 +74,12 @@ if __name__ == "__main__":
     # Create the lammps file for the unit cell
     bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix)
     bu.lammps_slab.write_lammps()
-    
+
     for direction in directions:
         print("direction", direction)
         deform_folder = direction
         if not os.path.exists(deform_folder): os.makedirs(deform_folder)
-    
+
         os.chdir(deform_folder)
 
         # Get supercell
@@ -95,7 +95,7 @@ if __name__ == "__main__":
                 'temperature': 300,
                 'pressure': 1.0,
                 'max_strain': 0.3,
-                'rate': 2e+8, 
+                'rate': 2e+8,
                 'dump_steps': 50,
                 'replicate': replicate,
                 }
@@ -110,4 +110,4 @@ if __name__ == "__main__":
         except:
             print('Fail to make plot', code, direction)
         os.chdir('../')
-    
+

@@ -1,5 +1,5 @@
 from pyxtal.db import database
-from ost.parameters import ForceFieldParameters
+from pyocse.parameters import ForceFieldParameters
 import matplotlib.pyplot as plt
 
 # Load the data

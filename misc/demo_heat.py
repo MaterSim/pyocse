@@ -1,4 +1,4 @@
-from ost.build import Builder
+from pyocse.build import Builder
 from pyxtal.db import database
 import numpy as np
 import os, sys
