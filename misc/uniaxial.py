@@ -6,7 +6,8 @@ import os
 # Set the crystal model
 data = [
         #('BIYRIM01', [[1,0,0], [0,1,0], [0,0,1]]),
-        ('ANLINB02', [[1,0,0], [0,1,0], [0,0,1]]),
+        #('ANLINB02', [[1,0,0], [0,1,0], [0,0,1]]),
+        ('IMAZOL06', [[1,0,0], [0,1,0], [0,0,1]]),
        ]
 style = 'openff' #'gaff'
 db = database('dataset/mech.db')
