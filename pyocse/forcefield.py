@@ -10,6 +10,12 @@ from pyocse.lmp import LAMMPSStructure
 from pyxtal.constants import single_smiles
 import re
 
+# Default SMIRNOFF force field for style="openff". Sage 2.0.0 has no proper
+# torsion for the sp3 C-N-N(=O)=O nitramine pattern (RDX, HMX, CL-20, tetryl
+# fail with "ProperTorsionHandler was not able to find parameters"); 2.1.0-rc.1
+# covers it and ships with openff-toolkit >= 0.14.
+DEFAULT_OPENFF = "openff-2.1.0-rc.1.offxml"
+
 
 class forcefield:
     """
@@ -19,16 +25,21 @@ class forcefield:
         - 2. generate the structures with multiple molecules and force fields
     """
 
-    def __init__(self, smiles, style="gaff", chargemethod="am1bcc", workdir="."):
+    def __init__(self, smiles, style="gaff", chargemethod="am1bcc", workdir=".",
+                 ff_name=None):
         """
         Args:
             smiles (list): molecular smiles
             style (str): 'gaff' or 'openff'
             chargemethod (str): 'mmff94', 'am1bcc', 'am1-mulliken', 'gasteiger'
             workdir (str): '.'
+            ff_name (str): SMIRNOFF offxml for style='openff'
+                           (default DEFAULT_OPENFF); ignored for 'gaff'
         """
         self.dics = []
         self.smiles = smiles
+        self.style = style
+        self.ff_name = ff_name if ff_name is not None else DEFAULT_OPENFF
         self.chargemethod = chargemethod
         if max([len(s) for s in smiles]) > 180:
             self.chargemethod = "gasteiger" #chargemethod
@@ -37,7 +48,10 @@ class forcefield:
         self.set_partial_charges()
 
         # setup converter
-        converter = get_gaff if style == "gaff" else get_openff
+        if style == "gaff":
+            converter = get_gaff
+        else:
+            converter = lambda smi, chg: get_openff(smi, chg, ff_name=self.ff_name)
 
         self.molecules = []
         for i, smi in enumerate(smiles):
@@ -209,7 +223,7 @@ class forcefield:
                 count += 1
 
 
-def get_openff(smiles, chargemethod, ff_name="openff-2.0.0.offxml"):
+def get_openff(smiles, chargemethod, ff_name=DEFAULT_OPENFF):
     """
     Get Openff parameters from smiles
     """
@@ -257,7 +271,7 @@ def get_gaff(smiles, chargemethod="gas", base="ff"):
     return struc
 
 
-def get_openff_with_silicon(xml="openff-2.0.0.offxml"):
+def get_openff_with_silicon(xml=DEFAULT_OPENFF):
     ff2 = ForceField(xml)
     # Dreiding Si3   0.3100 4.2700
     # Dreiding P_3   0.3200 4.1500

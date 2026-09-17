@@ -70,7 +70,7 @@ def convert_gaff(
 def convert_openff(
     smiles: str,
     molname: str,
-    forcefield_name: Optional[str] = "openff-2.0.0.offxml",
+    forcefield_name: Optional[str] = "openff-2.1.0-rc.1.offxml",
     chargemethod: Optional[str] = "gas",
     cleanup: Optional[bool] = True,
     savetoml: Optional[str] = None,

@@ -212,6 +212,7 @@ class ForceFieldParametersBase:
                  s_coef = 1.0,
                  ncpu = 1,
                  verbose = True,
+                 ff_name = None,
                  ):
         """
         Args:
@@ -222,12 +223,15 @@ class ForceFieldParametersBase:
             e_coef (float): coefficients for energy
             f_coef (float): coefficients for forces
             s_coef (float): coefficients for stress
+            ff_name (str): SMIRNOFF offxml for style='openff'
+                           (default forcefield.DEFAULT_OPENFF)
         """
         from pyocse.forcefield import forcefield
 
         self.smiles = smiles
         self.ff_style = style
-        self.ff = forcefield(smiles, style, chargemethod)
+        self.ff = forcefield(smiles, style, chargemethod, ff_name=ff_name)
+        self.ff_name = self.ff.ff_name if style == 'openff' else None
 
         # only works for 1:1 ratio cocrystal for now (QZ: to check if it is true)
         self.natoms_per_unit = sum([len(mol.atoms) for mol in self.ff.molecules])
@@ -1264,7 +1268,8 @@ class ForceFieldParameters(ForceFieldParametersBase):
                  f_coef = 0.1,
                  s_coef = 1.0,
                  ncpu = 1,
-                 verbose = True):
+                 verbose = True,
+                 ff_name = None):
 
         ForceFieldParametersBase.__init__(
                 self,
@@ -1277,6 +1282,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                 s_coef,
                 ncpu,
                 verbose,
+                ff_name=ff_name,
                 )
         if ref_evaluator is not None:
             self.set_ref_evaluator(ref_evaluator)
