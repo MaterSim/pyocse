@@ -8,13 +8,18 @@ from pyocse.interfaces.parmed import ParmEdStructure, ommffs_to_paramedstruc
 from pyocse.interfaces.rdkit import smiles_to_ase_and_pmg
 from pyocse.lmp import LAMMPSStructure
 from pyxtal.constants import single_smiles
+import os
 import re
 
 # Default SMIRNOFF force field for style="openff". Sage 2.0.0 has no proper
 # torsion for the sp3 C-N-N(=O)=O nitramine pattern (RDX, HMX, CL-20, tetryl
 # fail with "ProperTorsionHandler was not able to find parameters"); 2.1.0-rc.1
 # covers it and ships with openff-toolkit >= 0.14.
-DEFAULT_OPENFF = "openff-2.1.0-rc.1.offxml"
+#
+# Override per run without touching call sites (multiprocessing workers inherit
+# it): PYOCSE_OPENFF=openff-2.0.0.offxml python ...
+# Explicit ff_name= arguments to forcefield() / ForceFieldParameters() win.
+DEFAULT_OPENFF = os.environ.get("PYOCSE_OPENFF", "openff-2.1.0-rc.1.offxml")
 
 
 class forcefield:
