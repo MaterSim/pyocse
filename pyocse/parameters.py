@@ -213,24 +213,28 @@ class ForceFieldParametersBase:
                  ncpu = 1,
                  verbose = True,
                  ff_name = None,
+                 openff_version = None,
                  ):
         """
         Args:
             smiles (list): list of smiles strings
-            style (str): 'gaff' or 'openff'
+            style (str): 'gaff', 'openff', or 'openff-2.0' / 'openff-2.1'
             chargemethod (str): 'mmff94', 'am1bcc', 'am1-mulliken', 'gasteiger'
             ff_evaluator (str): 'lammps' or 'charmm'
             e_coef (float): coefficients for energy
             f_coef (float): coefficients for forces
             s_coef (float): coefficients for stress
-            ff_name (str): SMIRNOFF offxml for style='openff'
-                           (default forcefield.DEFAULT_OPENFF)
+            ff_name (str): SMIRNOFF offxml file for style='openff'
+            openff_version (str): Sage version for style='openff' ('2.0', '2.1');
+                           default forcefield.DEFAULT_OPENFF (PYOCSE_OPENFF env or 2.1)
         """
-        from pyocse.forcefield import forcefield
+        from pyocse.forcefield import forcefield, _split_openff_style
 
         self.smiles = smiles
+        style, style_version = _split_openff_style(style)
         self.ff_style = style
-        self.ff = forcefield(smiles, style, chargemethod, ff_name=ff_name)
+        self.ff = forcefield(smiles, style, chargemethod, ff_name=ff_name,
+                             openff_version=openff_version or style_version)
         self.ff_name = self.ff.ff_name if style == 'openff' else None
 
         # only works for 1:1 ratio cocrystal for now (QZ: to check if it is true)
@@ -1269,7 +1273,8 @@ class ForceFieldParameters(ForceFieldParametersBase):
                  s_coef = 1.0,
                  ncpu = 1,
                  verbose = True,
-                 ff_name = None):
+                 ff_name = None,
+                 openff_version = None):
 
         ForceFieldParametersBase.__init__(
                 self,
@@ -1283,6 +1288,7 @@ class ForceFieldParameters(ForceFieldParametersBase):
                 ncpu,
                 verbose,
                 ff_name=ff_name,
+                openff_version=openff_version,
                 )
         if ref_evaluator is not None:
             self.set_ref_evaluator(ref_evaluator)

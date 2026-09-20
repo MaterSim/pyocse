@@ -109,6 +109,30 @@ for d in data:
     os.chdir(cwd)
 ```
 
+### Choosing the OpenFF (Sage) version
+
+`style="openff"` uses Sage **2.1** (`openff-2.1.0-rc.1.offxml`, the newest file
+the openff-toolkit ships) by default. Sage 2.0.0 lacks the sp3 C–N–NO₂ torsion,
+so nitramines (RDX, HMX, CL-20, …) fail to parameterize under it. Pick a version:
+
+```python
+from pyocse.parameters import ForceFieldParameters
+
+ForceFieldParameters(smiles, style="openff-2.0")            # shorthand in style
+ForceFieldParameters(smiles, style="openff", openff_version="2.1")
+ForceFieldParameters(smiles, style="openff", ff_name="openff-2.0.0.offxml")
+```
+
+or per process, without touching call sites (multiprocessing workers inherit it):
+
+```bash
+PYOCSE_OPENFF=2.0 python my_search.py          # a version or a full *.offxml name
+```
+
+`pyocse.forcefield.resolve_openff("2.1")` shows which file a version maps to on
+this installation; released Sage 2.1.x / 2.2.x require the conda-forge
+`openff-forcefields` package.
+
 You can check the details in `misc/uniaxial.py`
 
 ## Contacts:
